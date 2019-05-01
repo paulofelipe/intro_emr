@@ -1,0 +1,30 @@
+.large { font-size: 160% }
+
+.title-slide h1 {
+  font-size: 40px;
+  font-family: "Roboto";
+  font-weight: 400;
+}
+
+.remark-slide-content {
+  font-size: 20px;
+  /* border-top: 3px solid #0a3d62;
+  border-bottom: 3px solid #0a3d62; */
+  padding: 1em 4em 1em 4em;
+}
+
+.title-slide h2{
+  font-family: "Roboto Condensed";
+  font-size: 30px;
+} 
+
+.title-slide h3 {
+  font-family: "Roboto Condensed";
+  font-size: 25px;
+}
+
+/* Change the background color to white for shaded rows (even rows) */
+
+.remark-slide thead, .remark-slide tr:nth-child(2n) {
+    background-color: white;
+}

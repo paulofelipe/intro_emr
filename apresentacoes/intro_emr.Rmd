@@ -1,0 +1,594 @@
+---
+title: "Introdução ao `r emo::ji('package')` emr"
+subtitle: "Simulações Numéricas para Análise de Políticas Comerciais"
+author: "Paulo Felipe Alencar `r emo::ji('man_technologist')`"
+date: "Abril de 2019"
+output:
+  xaringan::moon_reader:
+    footer: These slides available at http://bit.ly/myslides
+    lib_dir: libs
+    nature:
+      highlightStyle: github
+      highlightLines: true
+      countIncrementalSlides: false
+      titleSlideClass: ["center", "middle"]
+    css: [xaringan-themer.css,custom.css]
+header-includes:
+  - \usepackage{color}
+---
+
+```{r setup, include=FALSE}
+options(htmltools.dir.version = FALSE)
+``` 
+
+```{r xaringan-themer, include = FALSE}
+library(xaringanthemer)
+
+base_color <- "#e55039"
+xaringanthemer::mono_light(
+  #header_font_google = google_font("Roboto", "400", "400i"),
+  #text_font_google   = google_font("Roboto", "300", "300i"),
+  header_color = base_color,
+  inverse_background_color = base_color,
+  background_color = "#ffffff",
+  text_font_size = '20px',
+  link_color = "#E67245",
+  title_slide_background_color = "#ffffff",
+  title_slide_text_color = base_color,
+  header_font_google   = google_font("Roboto", "700"),
+  text_font_google     = google_font("Roboto Condensed"),
+  code_font_google     = google_font("Droid Mono"),
+  code_highlight_color = "#D2B6E8",
+  header_h1_font_size = '45px',
+  header_h2_font_size = '35px',
+  header_h3_font_size = '30px',
+  text_slide_number_color = base_color
+)
+
+```
+
+class: center, middle, inverse
+# Motivação `r emo::ji('nerd')`
+
+---
+## Introdução
+
+- Necessidade de modelos para análise de políticas comerciais
+
+- Equilíbrio Parcial x Equilíbrio Geral
+
+- R vs linguagens específicas: GEMPACK e GAMS
+
+- Por que não usar o pacote `gEcon`? `r emo::ji('person_shrugging')`
+
+- A ideia é substituir o GTAP? `r emo::ji('multiplication')`
+
+---
+
+class: center, middle, inverse
+# O pacote `r emo::ji("package")`
+
+---
+## Sobre o emr
+
+- Opção *open source* para simulações baseadas em modelos econômicos aplicados
+
+- O pacote `emr` é apenas uma alternativa que **tenta** seguir a linha geral do GEMPACK, mas não há necessidade de linearização do modelo
+
+- Aproveita o poder de manipulação e visualização de dados do R
+
+- O modelo pode ser escrito em variações ou não, mas é preferível escrever em variações (reduz o número de parâmetros do modelo)
+
+- O pacote ainda não foi testado com modelos de larga escala, mas um dos *solvers* (pacote BB) promete resolver grandes sistemas de equações não-lineares 
+
+- Instalação:
+
+```{r, eval=FALSE}
+remotes::install_github('paulofelipe/emr')
+```
+
+
+---
+## Lógica para construção de modelos
+
+- Modelos mais complexos podem rapidamente ter um grande número de equações, demandando recursos computacionais para a sua solução
+
+- Na prática, busca-se aplicar algum método de eliminação (substituição). No GEMPACK, é aplicada uma "condensação"
+   
+    - Variáveis que são exógenas e não serão alteradas nas simulações;
+    - Substituição
+
+---
+## Estrutura do modelo
+
+- No `emr`, utilizamos a lógica descrita em [A simple structure for CGE models](https://jgea.org/resources/download/6539.pdf) de Zhang (2013)
+
+```{r,echo=FALSE, fig.align='center'}
+knitr::include_graphics("structure_var_eq.png", dpi = 175)
+```
+
+---
+
+## Estrutura para modelos
+
+- Cada variável tem dois atributos:
+
+    1. Exógena ou Endógenas
+    2. Definida (*defined*) ou Não-Definida (*undefined*)
+
+- Para todos os efeitos, *trataremos as variáveis exógenas como parâmetros*. Ou sejam, são fixas e seus valores não dependem de nenhuma variável endógena
+
+- Na prática, quando estivermos falando de variáveis, estaremos sempre falando de variáveis endógenas, restando saber se ela é definida ou não
+
+- Dois de tipos de equações:
+
+    1. Definidoras (*defining*) 
+    2. De equilíbrio (*mcc - market clearing condition*). Exemplo: Oferta = Demanda
+
+---
+
+class: center, middle, inverse
+# Primeiro Exemplo
+
+---
+
+## Exemplo: Oferta e Demanda
+
+- Curva de Oferta
+$$\color{red}{Q^s} = k^s \color{blue}{P}^\epsilon, \epsilon > 0$$
+
+- Curva de Demanda
+
+$$\color{red}{Q^d} = k^d \color{blue}{P}^\eta, \eta < 0$$
+
+- Equilíbrio de Mercado
+
+$$\color{red}{Q^s} = \color{red}{Q^d}$$
+
+- 3 variáveis ( $\color{red}{Q^s}$, $\color{red}{Q^d}$ e $\color{blue}{P}$) e 3 equações
+
+- 4 parâmetros ( $k^s$, $k^d$, $\epsilon$ e $\eta$)
+
+-   $k^s$ e $k^d$ podem ser interpretadas como variáveis exógenas (outros fatores que afetam a oferta e a demanda) 
+
+- As duas primeiras equações **definem** $Q^s$ e $Q^d$ e a terceira equação serve de condição de equilíbrio para $P$
+
+---
+
+## Exemplo: Oferta e Demanda
+
+- Dados: 
+
+    - $Q^s = Q^d = 10$
+    - $P = 1$
+    - $\eta = -1$
+    - $\epsilon = 1$
+    - $k^s = k^d = 10$ (calibrado: $k^s = Q^s/P^\epsilon$)
+
+- Carregando o pacote:
+
+```{r}
+library(emr)
+```
+
+- Iniciando os componentes do modelo:
+
+```{r}
+params <- list()
+variables <- list()
+equations <- list()
+# Um modelo pode ter mais dois componentes:
+# Sets e update_equations (serão tratados no futuro)
+```
+
+
+---
+
+## Oferta
+
+$$ Q^s = k^s P^\epsilon $$
+
+- Definindo parâmetros 
+
+
+```{r}
+params[["k_s"]] <- create_param(
+  value = 10,
+  indexes = list(k_s = "k_s"),
+  desc = "shift da curva de oferta"
+)
+
+params[["epsilon"]] <- create_param(
+  value = 1,
+  indexes = list(epsilon = "epsilon"),
+  desc = "elasticidade-preço da oferta"
+)
+
+
+```
+
+---
+
+## Oferta
+
+$$ Q^s = k^s P^\epsilon $$
+
+- Definindo variáveis
+
+```{r}
+variables[["Q_s"]] <- create_variable(
+  value = 10,
+  indexes = list(Q_s = "Q_s"),
+  type = "defined",
+  desc = "quantidade ofertada"
+)
+
+variables[["P"]] <- create_variable(
+  value = 1,
+  indexes = list(P = "P"),
+  type = "undefined",
+  desc = "preço"
+)
+```
+
+
+---
+
+## Oferta
+
+$$ Q^s = k^s P^\epsilon $$
+
+- Definindo a equação
+
+```{r}
+equations[["E_Q_s"]] <- create_equation(
+  'Q_s = k_s * P^epsilon',
+  type = "defining",
+  desc = "quantidade ofertada"
+)
+```
+
+
+---
+## Demanda
+
+$$ Q^d = k^d P^\eta $$
+
+- Definindo parâmetros e variáveis
+
+```{r}
+params[["k_d"]] <- create_param(
+  value = 10,
+  indexes = list(k_d = "k_d"),
+  desc = "shift da curva de demanda"
+)
+
+params[["eta"]] <- create_param(
+  value = -1,
+  indexes = list(eta = "eta"),
+  desc = "elasticidade-preço da demanda"
+)
+
+variables[["Q_d"]] <- create_variable(
+  value = 10,
+  indexes = list(Q_d = "Q_d"),
+  type = "defined",
+  desc = "quantidade demandada"
+)
+```
+
+---
+## Demanda
+
+$$ Q^d = k^d P^\eta $$
+
+- Definindo a equação
+
+```{r}
+equations[["E_Q_d"]] <- create_equation(
+  'Q_d = k_d * P^eta',
+  type = "defining",
+  desc = "quantidade demandada"
+)
+```
+
+
+---
+## Equilíbrio de mercado
+
+- Deve ser uma expressão que deverá convergir a zero
+
+$$Q^s - Q^d$$
+
+```{r}
+equations[["E_P"]] <- create_equation(
+  'Q_s - Q_d',
+  type = "mcc",
+  desc = "equilíbrio de mercado"
+)
+```
+
+---
+## Definindo o modelo
+
+```{r}
+modelo <- list(
+  params = params,
+  variables = variables,
+  equations = equations
+)
+```
+
+- Checando se o modelo está corretamente especificado
+
+```{r, message=FALSE}
+sol <- solve_emr(modelo)
+sol$sol$message
+
+# Elementos da solução
+names(sol)
+```
+
+---
+## Experimento
+
+- Simular um choque positivo na oferta  ${k^s}^{\prime} = 11$
+
+```{r}
+modelo$params$k_s$value <- 11
+```
+
+- Precisamos resolver o modelos novamente:
+
+```{r}
+sol2 <- solve_emr(modelo)
+sol2$sol$message
+```
+
+---
+## Experimento - Resultados
+
+```{r}
+sol2$variables
+```
+
+---
+class: center, middle, inverse
+# Modelo em variações
+
+---
+## Utilizando variações
+
+- Iremos denotar a variação da variável $X$ como:
+
+$$ \hat{X} = \frac{X'}{X}, $$
+em que $X'$ é o valor de $X$ no novo equilíbrio.
+
+- Alguns exemplos de reescrita em variações:
+
+    - $Z = XY \Rightarrow \hat{Z} = \hat{X}\hat{Y}$
+    - $Z = X + Y \Rightarrow \hat{Z} = \hat{X} \frac{X}{Z} + \hat{Y} \frac{Y}{Z}$
+    - $Z = X^2 \Rightarrow \hat{Z} = \hat{X}^2$
+    - $P = \left[\sum_i (\alpha_i p_i)^{1-\sigma}\right]^{\frac{1}{1 - \sigma}} \Rightarrow \hat{P} = \left[\sum_i \pi_i (\hat{\alpha}_i \hat{p}_i)^{1-\sigma}\right]^{\frac{1}{1 - \sigma}}$, em que $\pi_i$ é a participação no dispêndio
+
+---
+## Oferta e Demanda em Variações
+
+- Reescrevendo o modelo em variações:
+
+- Curva de Oferta
+$$ \hat{Q}^s = \hat{k}^s \hat{P}^\epsilon, \epsilon > 0 $$
+
+- Curva de Demanda
+
+$$\hat{Q}^d = \hat{k}^d \hat{P}^\eta, \eta < 0$$
+
+- Equilíbrio de Mercado
+
+$$ \hat{Q}^s = \hat{Q}^d$$
+
+---
+## Exemplo: Oferta e Demanda em Variações
+
+- Dados: 
+
+    - $\hat{Q}^s = \hat{Q}^d = 1$
+    - $\hat{P} = 1$
+    - $\eta = -1$
+    - $\epsilon = 1$
+    - $\hat{k}^s = \hat{k}^d = 1$
+
+
+- Iniciando os componentes do modelo:
+
+```{r}
+params <- list()
+variables <- list()
+equations <- list()
+```
+
+
+---
+
+## Oferta
+
+$$ \hat{Q}^s = \hat{k}^s \hat{P}^\epsilon $$
+
+- Definindo parâmetros 
+
+
+```{r}
+params[["k_s"]] <- create_param(
+  value = 1,
+  indexes = list(k_s = "k_s"),
+  desc = "shift da curva de oferta"
+)
+
+params[["epsilon"]] <- create_param(
+  value = 1,
+  indexes = list(epsilon = "epsilon"),
+  desc = "elasticidade-preço da oferta"
+)
+
+
+```
+
+---
+
+## Oferta
+
+$$ \hat{Q}^s = \hat{k}^s \hat{P}^\epsilon $$
+
+- Definindo variáveis
+
+```{r}
+variables[["Q_s"]] <- create_variable(
+  value = 1,
+  indexes = list(Q_s = "Q_s"),
+  type = "defined",
+  desc = "quantidade ofertada"
+)
+
+variables[["P"]] <- create_variable(
+  value = 1,
+  indexes = list(P = "P"),
+  type = "undefined",
+  desc = "preço"
+)
+```
+
+
+---
+
+## Oferta
+
+$$ \hat{Q}^s = \hat{k}^s \hat{P}^\epsilon $$
+
+- Definindo a equação
+
+```{r}
+equations[["E_Q_s"]] <- create_equation(
+  'Q_s = k_s * P^epsilon',
+  type = "defining",
+  desc = "quantidade ofertada"
+)
+```
+
+
+---
+## Demanda
+
+- Definindo parâmetros e variáveis
+
+```{r}
+params[["k_d"]] <- create_param(
+  value = 1,
+  indexes = list(k_d = "k_d"),
+  desc = "shift da curva de demanda"
+)
+
+params[["eta"]] <- create_param(
+  value = -1,
+  indexes = list(eta = "eta"),
+  desc = "elasticidade-preço da demanda"
+)
+
+variables[["Q_d"]] <- create_variable(
+  value = 1,
+  indexes = list(Q_d = "Q_d"),
+  type = "defined",
+  desc = "quantidade demandada"
+)
+```
+
+---
+## Demanda
+
+$$ \hat{Q}^d = \hat{k}^d \hat{P}^\eta $$
+
+- Definindo a equação
+
+```{r}
+equations[["E_Q_d"]] <- create_equation(
+  'Q_d = k_d * P^eta',
+  type = "defining",
+  desc = "quantidade demandada"
+)
+```
+
+
+---
+## Equilíbrio de mercado
+
+- Deve ser uma expressão que deverá convergir a zero
+
+$$\hat{Q}^s - \hat{Q}^d$$
+
+```{r}
+equations[["E_P"]] <- create_equation(
+  'Q_s - Q_d',
+  type = "mcc",
+  desc = "equilíbrio de mercado"
+)
+```
+
+---
+## Definindo o modelo
+
+```{r}
+modelo_var <- list(
+  params = params,
+  variables = variables,
+  equations = equations
+)
+```
+
+- Checando se o modelo está corretamente especificado
+
+```{r, message=FALSE}
+sol <- solve_emr(modelo_var)
+sol$sol$message
+
+```
+
+---
+## Experimento
+
+- Simular um choque positivo na oferta  ${k^s}^{\prime} = 1.1$
+
+```{r}
+modelo_var$params$k_s$value <- 1.1
+```
+
+- Precisamos resolver o modelos novamente:
+
+```{r}
+sol2 <- solve_emr(modelo_var)
+sol2$sol$message
+```
+
+---
+## Experimento - Resultados
+
+```{r}
+sol2$variables
+```
+
+---
+
+class: center, middle, inverse
+# Exercício `r emo::ji("writing_hand")`
+
+---
+
+# Exercício
+
+- Inclua um **parâmetro** de tarifa no modelo anterior
+
+- Utilize $\tau = (1 + t)$ para criar um gap entre o preço do consumidor e o preço do produtor
+
+- No equilíbrio inicial, $\tau = 1$
+
+- Simule o efeito do estabelecimento de uma tarifa $t$ de 10%
+
+- Qual é a variação na quantidade de equilíbrio e no preço recebido pelo produtor?

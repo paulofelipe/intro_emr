@@ -1,0 +1,134 @@
+---
+title: "Implementando Caliendo e Parro (2015)"
+author: "Paulo Felipe Alencar | `r emo::ji('man_technologist')` | 04/2019"
+output:
+  xaringan::moon_reader:
+    lib_dir: libs
+    nature:
+      highlightStyle: github
+      highlightLines: true
+      countIncrementalSlides: false
+      titleSlideClass: [center, middle]
+    css: [xaringan-themer.css,custom.css]
+header-includes:
+  - \usepackage{color}
+---
+
+```{r setup, include=FALSE}
+options(htmltools.dir.version = FALSE)
+```
+
+```{r xaringan-themer, include = FALSE}
+library(xaringanthemer)
+
+base_color <- "#e55039"
+xaringanthemer::mono_light(
+  #header_font_google = google_font("Roboto", "400", "400i"),
+  #text_font_google   = google_font("Roboto", "300", "300i"),
+  header_color = base_color,
+  inverse_background_color = base_color,
+  background_color = "#ffffff",
+  text_font_size = '20px',
+  link_color = "#E67245",
+  title_slide_background_color = "#ffffff",
+  title_slide_text_color = base_color,
+  header_font_google   = google_font("Roboto", "700"),
+  text_font_google     = google_font("Roboto Condensed"),
+  code_font_google     = google_font("Droid Mono"),
+  code_highlight_color = "#D2B6E8",
+  header_h1_font_size = '45px',
+  header_h2_font_size = '35px',
+  header_h3_font_size = '30px',
+  text_slide_number_color = base_color
+)
+```
+
+class: center, middle, inverse
+# Sobre o Modelo
+
+---
+
+## Sistema de Equações
+
+- Variação no custo da cesta de insumos
+$$\color{blue}{\hat{c}^j_n} = \color{blue}{\hat{w}_n^{\gamma_j^n}} \prod_{k=1}^J\color{red}{\hat{P}_n^{k^{\gamma_n^{k,j}}}}$$
+
+- Variação no índice de preço setorial
+$$\color{red}{\hat{P}_n^j} = \left[\sum_{i=1}^N\pi_{ni}[\hat{k}_{ni}^j \color{blue}{\hat{c}^j_i}]^{-\theta_j}\right]^{-1/\theta_j}$$
+
+- Participações no comércio bilateral
+
+$$\color{red}{\hat{\pi}_{ni}^j} = \left[\frac{\color{blue}{\hat{c}^j_i} \hat{k}_{ni}^j}{\color{red}{\hat{P}_n^j}}\right]^{-\theta_j}$$
+
+- Novas participações
+
+$$\color{red}{\pi_{in}^{j^\prime}} = \color{red}{\hat{\pi}_{ni}^j} \pi_{in}^j$$
+
+---
+
+## Sistema de Equações (Cont.)
+
+- Valor da Produção
+
+$$\color{red}{{Y}_n^{j\prime}} = \sum_{i=1}^N \frac{\color{red}{\pi_{in}^{j^\prime}}}{1 + \tau_{in}^{k^\prime}}\color{blue}{X_i^{k^\prime}}$$
+
+- Dispêndio total por país $n$ e setor $j$
+
+$$\color{blue}{X_n^{j^\prime}} = \sum_{k=1}^J \gamma_n^{j,k} \color{red}{{Y}_n^{j\prime}} + \alpha_n^j \color{red}{I_n^\prime}$$
+
+- Absorção Final
+
+$$\color{red}{I_n^\prime} = \color{blue}{\hat{w}_n}w_nL_n + \sum_{j=1}^J\sum_{i=1}^{N}  \tau_{ni}^{j^\prime} \frac{\color{red}{\pi_{ni}^\prime}}{1 + \tau_{ni}^{j^\prime}} \color{red}{X_n^{j^\prime}} + D_n$$
+
+---
+## Sistema de Equações (Cont.)
+
+- Balança Comercial (Dispêndio - Produção = Déficit)
+
+$$\sum_{j=1}^J\sum_{i=1}^{N}  \tau_{ni}^{j^\prime} \frac{\color{red}{\pi_{ni}^\prime}}{1 + \tau_{ni}^{j^\prime}} \color{red}{X_n^{j^\prime}} - D_n = \sum_{j=1}^J \color{red}{Y_n^{j^\prime}}$$
+
+A equação acima implica em equilíbrio no mercado de trabalho
+
+- Equilíbrio no Mercado Trabalho (Valor Adicionado)
+
+$$\color{blue}{\hat{w}_n}w_nL_n = \gamma_n^j \color{red}{Y_n^{j\prime}}$$
+
+---
+## Variáveis Não-Definidas e Equações de Equilíbrio (mcc)
+
+Variável | Equação (mcc) | Dimensão
+---------|-----------------|------------------
+$\color{blue}{\hat{c}_n^j}$ | $\color{blue}{\hat{c}^j_n} = \color{blue}{\hat{w}_n^{\gamma_j^n}} \prod_{k=1}^J\color{red}{\hat{P}_n^{k^{\gamma_n^{k,j}}}}$ | $N \times J$
+$\color{blue}{X_n^{j^\prime}}$ | $\color{blue}{X_n^{j^\prime}} = \sum_{k=1}^J \gamma_n^{j,k} \color{red}{{Y}_n^{j\prime}} + \alpha_n^j \color{red}{I_n^\prime}$ | $N \times J$
+$\color{blue}{\hat{w}_n}$ | $\color{blue}{\hat{w}_n}w_nL_n = \gamma_n^j \color{red}{Y_n^{j\prime}}$ | $N$
+
+
+---
+class: center, middle, inverse
+# Implementando no R
+
+---
+## Dados
+
+- Lendo so dados
+
+```{r}
+load('../dados/caliendo_parro.RData', verbose = TRUE)
+```
+
+---
+## Conjuntos (Sets)
+
+```{r}
+exporters <- as.character(unique(pi_df$exporter))
+importers <- as.character(unique(pi_df$exporter))
+sectors <- as.character(unique(pi_df$sector))
+
+sets <- list(
+  exporters = exporters,
+  importer = importers,
+  sectors = sectors
+)
+```
+
+

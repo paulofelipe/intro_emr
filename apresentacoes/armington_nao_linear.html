@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+  <head>
+    <title>Modelo de Armington Não-Linear</title>
+    <meta charset="utf-8" />
+    <meta name="author" content="Paulo Felipe Alencar | 👨‍💻 | 04/2019" />
+    <script src="libs/kePrint/kePrint.js"></script>
+    <link rel="stylesheet" href="xaringan-themer.css" type="text/css" />
+    <link rel="stylesheet" href="custom.css" type="text/css" />
+  </head>
+  <body>
+    <textarea id="source">
+class: center, middle, title-slide
+
+# Modelo de Armington Não-Linear
+### Paulo Felipe Alencar | 👨‍💻 | 04/2019
+
+---
+
+
+
+
+
+
+class: center, middle, inverse
+# Sobre o Modelo
+
+---
+
+## Introdução
+
+- Modelo de Equilíbrio Parcial
+
+- O interesse é em um produto específico (Ex.: "Fornos")
+
+- Hipótese de Armington (1969): Os produtos (**variedades**) (importados e domésticos) são substitutos imperfeitos
+
+- Variedade é uma combinação produto-origem: tv-chinesa, tv-brasileira, tv-americana etc.
+
+- Pode ser utilizado para analisar impactos de tarifas, barreiras não-tarifárias, choques de oferta e choques de demanda
+
+---
+class: center, middle, inverse
+# Especificação do Modelo
+
+---
+## Preferências
+
+- O consumidor tem preferências do tipo CES (elasticidade de substituição constante)
+
+- O consumo de cada variedade é agregada em um bem composto `\(Q\)`
+
+$$Q = \left[ \sum_{i=1}^N \alpha_i^\frac{1-\sigma}{\sigma}q_i^\frac{\sigma-1}{\sigma}\right]^\frac{\sigma}{\sigma-1} $$
+- O índice `\(i\)` representa uma variedade (origem)
+
+- O consumidor maximiza `\(Q\)` sujeito à restrição `\(\sum_{i=1}^N p_i q_i = E\)`, em que `\(p_i\)` é o preço ao consumidor (inclui tarifas) da variedade `\(i\)` e `\(E\)` é o dispêndio total
+
+- O bem composto `\(Q\)` tem um índice de preço `\(P\)`:
+
+`$$P = \left[ \sum_{i=1}^N (\alpha_i p_i)^{1-\sigma}\right]^\frac{1}{1-\sigma}$$`
+
+`$$PQ = E$$`
+---
+## Demanda por variedade
+
+- A demanda por cada variedade `\(i\)` é dada por:
+
+`$$q_i = \alpha_i^{1-\sigma} \left(\frac{p_i}{P}\right)^{-\sigma}\frac{E}{P}$$`
+
+---
+## Oferta
+
+- É assumida uma curva do tipo elasticidade constante:
+
+- O produtor recebe `\(p_i/(1 + t_i)\)`, em que `\(t_i\)` é a tarifa cobrada no consumo da variedade `\(i\)`
+
+`$$x_i = k_i^s \left(\frac{p_i}{1+t_i}\right)^{\varepsilon_i}$$`
+
+- `\(k_i^s\)`, que é um **parâmetro**, engloba outros fatores que podem afetar a oferta
+
+---
+## Demanda Total
+
+- O consumidor tem uma dispêndio `\(E\)` para ser alocado entre as variedades
+
+- Este valor pode ser fixo ou não
+
+- Usualmente, assume-se uma curva de demanda total
+
+$$Q = k^d P^\eta $$
+
+- Multiplicando os dois lados por `\(P\)`, chega-se a equação de dispêndio total:
+
+`$$E=k^dP^{\eta+1}$$`
+
+---
+## Sistema
+
+- Dispêndio Total
+`$$\color{red}{E}=k^d\color{red}{P}^{\eta+1}$$`
+
+- Índice de preço do bem composto `\(Q\)` ( `\(Q = E/P\)` )
+
+`$$\color{red}{P} = \left[ \sum_{i=1}^N (\alpha_i \color{blue}{p_i})^{1-\sigma}\right]^\frac{1}{1-\sigma}$$`
+
+- Demanda por variedade
+`$$\color{red}{q_i} = \alpha_i^{1-\sigma} \left(\frac{\color{blue}{p_i}}{\color{red}{P}}\right)^{-\sigma}\frac{\color{red}{E}}{\color{red}{P}}$$`
+
+- Oferta por variedade
+`$$\color{red}{x_i} = k_i^s \left(\frac{\color{blue}{p_i}}{1+t_i}\right)^{\varepsilon_i}$$`
+
+- Equilíbrio - oferta x demanda por variedade
+`$$\color{red}{q_i} = \color{red}{x_i}$$`
+
+---
+## Sistema em Variações
+
+- Dispêndio Total
+`$$\color{red}{\hat{E}}=\hat{k}^d\color{red}{\hat{P}}^{\eta+1}$$`
+
+- Índice de preço do bem composto `\(Q\)` ( `\(Q = E/P\)` )
+
+`$$\color{red}{\hat{P}} = \left[ \sum_{i=1}^N \pi_i(\hat{\alpha_i} \color{blue}{\hat{p_i}})^{1-\sigma}\right]^\frac{1}{1-\sigma}, ~ \pi_i = \frac{p_iq_i}{\sum_i p_iq_i}$$`
+
+- Demanda por variedade
+`$$\color{red}{\hat{q_i}} = \hat{\alpha_i}^{1-\sigma} \left(\frac{\color{blue}{\hat{p_i}}}{\color{red}{\hat{P}}}\right)^{-\sigma}\frac{\color{red}{\hat{E}}}{\color{red}{\hat{P}}}$$`
+
+- Oferta por variedade
+`$$\color{red}{\hat{x_i}} = k_i^s \left(\frac{\color{blue}{\hat{p_i}}}{\hat{\tau_i}}\right)^{\varepsilon_i}, ~~ \tau_i = 1+t_i$$`
+
+- Equilíbrio - oferta x demanda por variedade
+`$$\color{red}{\hat{q_i}} = \color{red}{\hat{x_i}}$$`
+
+---
+class: center, middle, inverse
+# Implementando o modelo no R
+
+
+---
+## Dados
+
+- Iremos considerar 3 regiões (variedades): `bra`, `usa` e `row`
+
+```r
+reg &lt;- c("bra", "usa", "row")
+```
+
+
+- Dados base:
+- Valores a preços internos:
+
+
+```r
+v0 &lt;- c(bra = 60, usa = 30, row = 10) 
+```
+
+- Tarifas Iniciais:
+
+```r
+t0 &lt;- c(bra = 0, usa = 0, row = 0)
+```
+
+- Elasticidades:
+
+
+```r
+eta &lt;- -2 # Elasticidade-preço da demanda
+epsilon &lt;- c(bra = 1,usa = 10,row = 10) # Elasticidades-preço das ofertas
+sigma &lt;- 4 # Elasticidade de substituição
+```
+
+
+---
+## Componentes do modelo
+
+- Carregando os pacotes que utilizaremos:
+
+```r
+library(emr)
+library(tidyverse)
+```
+
+- Criando os componentes
+
+```r
+params &lt;- list()
+variables &lt;- list()
+equations &lt;- list()
+sets &lt;- list()
+update_equations &lt;- list()
+```
+
+- `sets` deve uma lista nomeada de índices
+
+- Neste modelo, teremos apenas um conjunto de índices que chamaremos de `REG`
+
+
+```r
+sets[["REG"]] &lt;- reg
+sets
+```
+
+```
+## $REG
+## [1] "bra" "usa" "row"
+```
+
+---
+## Dispêndio - Parâmetros
+
+`$$\color{red}{\hat{E}}=\hat{k}^d\color{red}{\hat{P}}^{\eta+1}$$`
+
+
+```r
+params[["k_d"]] &lt;- create_param(
+  value = 1,
+  indexes = list(k_d = "k_d"),
+  desc = "variação no shift da demanda total"
+)
+
+params[["eta"]] &lt;- create_param(
+  value = eta,
+  indexes = list(eta = "eta"),
+  desc = "elasticidade-preço da demanda"
+)
+```
+
+
+---
+## Dispêndio - Variáveis
+
+`$$\color{red}{\hat{E}}=\hat{k}^d\color{red}{\hat{P}}^{\eta+1}$$`
+
+
+```r
+variables[["E"]] &lt;- create_variable(
+  value = 1,
+  indexes = list(E = "E"),
+  type = "defined",
+  desc = "variação no dispêndio total"
+)
+
+variables[["P"]] &lt;- create_variable(
+  value = 1,
+  indexes = list(P = "P"),
+  type = "defined",
+  desc = "variação no índice de preço do bem composto"
+)
+```
+
+
+---
+## Dispêndio - Equações
+
+`$$\color{red}{\hat{E}}=\hat{k}^d\color{red}{\hat{P}}^{\eta+1}$$`
+
+
+```r
+equations[["E_E"]] &lt;- create_equation(
+  "E = k_d * P^(eta+1)",
+  type = "defining",
+  desc = "variação no dispêndio total"
+)
+```
+
+---
+## Índice de Preço - Parâmetros
+
+`$$\color{red}{\hat{P}} = \left[ \sum_{i=1}^N \pi_i(\hat{\alpha_i} \color{blue}{\hat{p_i}})^{1-\sigma}\right]^\frac{1}{1-\sigma}, ~ \pi_i = \frac{p_iq_i}{\sum_i p_iq_i}$$`
+
+
+```r
+params[["alpha"]] &lt;- create_param(
+  value = 1,
+  indexes = sets["REG"],
+  desc = "variação no parâmetro de preferência"
+)
+
+params[["pi"]] &lt;- create_param(
+  value = v0/sum(v0),
+  indexes = sets["REG"],
+  desc = "participacao no dispêndio total"
+)
+
+params[["sigma"]] &lt;- create_param(
+  value = sigma,
+  indexes = list(sigma = "sigma"),
+  desc = "elasticidade de substituição" 
+)
+```
+
+---
+## Índice de Preço - Variáveis
+
+`$$\color{red}{\hat{P}} = \left[ \sum_{i=1}^N \pi_i(\hat{\alpha_i} \color{blue}{\hat{p_i}})^{1-\sigma}\right]^\frac{1}{1-\sigma}, ~ \pi_i = \frac{p_iq_i}{\sum_i p_iq_i}$$`
+
+
+```r
+variables[["p"]] &lt;- create_variable(
+  value = 1,
+  indexes = sets['REG'],
+  type = 'undefined',
+  desc = 'variação nos preços internos'
+)
+```
+
+---
+## Índice de Preço - Equações
+
+`$$\color{red}{\hat{P}} = \left[ \sum_{i=1}^N \pi_i(\hat{\alpha_i} \color{blue}{\hat{p_i}})^{1-\sigma}\right]^\frac{1}{1-\sigma}, ~ \pi_i = \frac{p_iq_i}{\sum_i p_iq_i}$$`
+
+
+```r
+equations[["E_P"]] &lt;- create_equation(
+  'P = sum(pi * (alpha * p)^(1-sigma))^(1/(1-sigma))',
+  type = "defining",
+  desc = "variação no índice de preço do bem composto"
+)
+```
+
+---
+## Demanda por variedade (região) - Variáveis
+
+`$$\color{red}{\hat{q_i}} = \hat{\alpha_i}^{1-\sigma} \left(\frac{\color{blue}{\hat{p_i}}}{\color{red}{\hat{P}}}\right)^{-\sigma}\frac{\color{red}{\hat{E}}}{\color{red}{\hat{P}}}$$`
+
+
+```r
+variables[["q"]] &lt;- create_variable(
+  value = 1,
+  indexes = sets['REG'],
+  type = "defined",
+  desc = "variação na demanda por variedade"
+)
+```
+
+---
+## Demanda por variedade (região) - Equação
+
+`$$\color{red}{\hat{q_i}} = \hat{\alpha_i}^{1-\sigma} \left(\frac{\color{blue}{\hat{p_i}}}{\color{red}{\hat{P}}}\right)^{-\sigma}\frac{\color{red}{\hat{E}}}{\color{red}{\hat{P}}}$$`
+
+
+```r
+equations[["E_q"]] &lt;- create_equation(
+  'q[i] = alpha[i]^(1-sigma)*(p[i]/P)^(-sigma)*E/P',
+  indexes = "i in REG",
+  type = "defining",
+  desc = "variação na quantidade demandada"
+)
+```
+
+- Utilizamos o índice `\(i \in REG\)` para calcular a quantidade para cada região 
+
+- Note que poderíamos utilizar o cálculo vetorizado do R para evitar o *loop* que será utilizado para calcular a quantidade para cada `\(i\)`
+
+---
+## Demanda por variedade (região) - Variáveis
+
+`$$\color{red}{\hat{q_i}} = \hat{\alpha_i}^{1-\sigma} \left(\frac{\color{blue}{\hat{p_i}}}{\color{red}{\hat{P}}}\right)^{-\sigma}\frac{\color{red}{\hat{E}}}{\color{red}{\hat{P}}}$$`
+
+
+```r
+variables[["q"]] &lt;- create_variable(
+  value = 1,
+  indexes = sets['REG'],
+  type = "defined",
+  desc = "variação na demanda por variedade"
+)
+```
+
+---
+## Oferta por variedade (região) - Parâmetros
+
+`$$\color{red}{\hat{x_i}} = k_i^s \left(\frac{\color{blue}{\hat{p_i}}}{\hat{\tau_i}}\right)^{\varepsilon_i}$$`
+
+
+```r
+params[["k_s"]] &lt;- create_param(
+  value = 1,
+  indexes = sets['REG'],
+  desc = "variação no shift da curva de oferta"
+)
+
+params[["epsilon"]] &lt;- create_param(
+  value = epsilon,
+  indexes = sets['REG'],
+  desc = 'elasticidade-preço da oferta'
+)
+
+params[["tau"]] &lt;- create_param(
+  value = 1,
+  indexes = sets['REG'],
+  desc = "variação no poder da tarifa"
+)
+```
+
+---
+## Oferta por variedade (região) - Variáveis
+
+`$$\color{red}{\hat{x_i}} = k_i^s \left(\frac{\color{blue}{\hat{p_i}}}{\hat{\tau_i}}\right)^{\varepsilon_i}$$`
+
+
+```r
+variables[["x"]] &lt;- create_variable(
+  value = 1,
+  indexes = sets['REG'],
+  type = "defined",
+  desc = "variação na oferta da variedade i"
+)
+```
+
+---
+## Oferta por variedade (região) - Equação
+
+`$$\color{red}{\hat{x_i}} = k_i^s \left(\frac{\color{blue}{\hat{p_i}}}{\hat{\tau_i}}\right)^{\varepsilon_i}$$`
+
+
+```r
+equations[["e_x"]] &lt;- create_equation(
+  "x[i] = k_s[i] * (p[i]/(tau[i]))^epsilon[i]",
+  indexes = "i in REG",
+  type = "defining",
+  desc = "variação na oferta da variedade i"
+)
+```
+
+
+---
+## Condição de Equilíbrio 
+
+`$$\color{red}{\hat{q_i}} = \color{red}{\hat{x_i}}$$`
+
+
+```r
+equations[["E_p"]] &lt;- create_equation(
+  "x[i] - q[i]",
+  indexes = "i in REG",
+  type = "mcc",
+  desc = "condição de equilíbrio pro preço"
+)
+```
+
+---
+## Equações de Atualizações
+
+- É possível definir fórmulas que calculam o valor de alguma variável de interesse no novo equilíbrio
+
+- Por exemplo: Dispêndio por origem:
+
+`$$v_i' = v_i \times \hat{p_i} \times \hat{q_i}$$`
+
+
+```r
+params[["v0"]] &lt;- create_param(
+  value = v0,
+  indexes = sets["REG"],
+  desc = "valor do dispêndio inicial"
+)
+
+
+update_equations[["v0"]] &lt;- create_equation(
+  'v0[i] = v0[i] * p[i] * q[i]',
+  indexes = "i in REG",
+  desc = "valor do dispêndio por origem"
+)
+```
+
+
+
+---
+## Definindo o Modelo
+
+
+```r
+armington &lt;- list(
+    sets = sets,
+    params = params,
+    variables = variables,
+    equations = equations,
+    update_equations = update_equations
+  )
+
+# Checando
+sol &lt;- solve_emr(armington)
+sol$sol$message
+```
+
+```
+## [1] "Successful convergence"
+```
+
+---
+class: center, middle, inverse
+# Experimento
+
+---
+## Descrição do Experimento e Solução
+
+- Iremos simular a implementação de uma tarifa de 10% para a importação de bens originários dos Estados Unidos
+
+
+```r
+armington$params$tau$value[["usa"]] &lt;- 1.1
+```
+
+- Resolvendo o modelo:
+
+
+```r
+sol_cfl &lt;- solve_emr(armington)
+sol_cfl$sol$message
+```
+
+```
+## [1] "Successful convergence"
+```
+
+
+---
+## Resultados
+
+&lt;table class="table" style="margin-left: auto; margin-right: auto;"&gt;
+&lt;caption&gt;Resultados da simulação - Variáveis Agregadas - Variação %&lt;/caption&gt;
+ &lt;thead&gt;
+  &lt;tr&gt;
+   &lt;th style="text-align:center;"&gt; Dispêndio (E) &lt;/th&gt;
+   &lt;th style="text-align:center;"&gt; Preço (P) &lt;/th&gt;
+   &lt;th style="text-align:center;"&gt; Quantidade (Q) &lt;/th&gt;
+  &lt;/tr&gt;
+ &lt;/thead&gt;
+&lt;tbody&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:center;width: 7em; "&gt; -2,7 &lt;/td&gt;
+   &lt;td style="text-align:center;width: 7em; "&gt; 2,77 &lt;/td&gt;
+   &lt;td style="text-align:center;width: 7em; "&gt; -5,33 &lt;/td&gt;
+  &lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+
+&lt;p style="margin-bottom:3cm;"&gt; &lt;/p&gt;
+  
+
+&lt;table class="table" style="margin-left: auto; margin-right: auto;"&gt;
+&lt;caption&gt;Resultados da simulação - Variação %&lt;/caption&gt;
+ &lt;thead&gt;
+  &lt;tr&gt;
+   &lt;th style="text-align:center;"&gt; Região &lt;/th&gt;
+   &lt;th style="text-align:center;"&gt; Preço (p) &lt;/th&gt;
+   &lt;th style="text-align:center;"&gt; Quantidade (q) &lt;/th&gt;
+  &lt;/tr&gt;
+ &lt;/thead&gt;
+&lt;tbody&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:center;width: 7em; "&gt; bra &lt;/td&gt;
+   &lt;td style="text-align:center;width: 7em; "&gt; 1,10 &lt;/td&gt;
+   &lt;td style="text-align:center;width: 7em; "&gt; 1,10 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:center;width: 7em; "&gt; usa &lt;/td&gt;
+   &lt;td style="text-align:center;width: 7em; "&gt; 7,46 &lt;/td&gt;
+   &lt;td style="text-align:center;width: 7em; "&gt; -20,80 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:center;width: 7em; "&gt; row &lt;/td&gt;
+   &lt;td style="text-align:center;width: 7em; "&gt; 0,39 &lt;/td&gt;
+   &lt;td style="text-align:center;width: 7em; "&gt; 3,99 &lt;/td&gt;
+  &lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+    </textarea>
+<style data-target="print-only">@media screen {.remark-slide-container{display:block;}.remark-slide-scaler{box-shadow:none;}}</style>
+<script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
+<script>var slideshow = remark.create({
+"highlightStyle": "github",
+"highlightLines": true,
+"countIncrementalSlides": false
+});
+if (window.HTMLWidgets) slideshow.on('afterShowSlide', function (slide) {
+  window.dispatchEvent(new Event('resize'));
+});
+(function(d) {
+  var s = d.createElement("style"), r = d.querySelector(".remark-slide-scaler");
+  if (!r) return;
+  s.type = "text/css"; s.innerHTML = "@page {size: " + r.style.width + " " + r.style.height +"; }";
+  d.head.appendChild(s);
+})(document);
+
+(function(d) {
+  var el = d.getElementsByClassName("remark-slides-area");
+  if (!el) return;
+  var slide, slides = slideshow.getSlides(), els = el[0].children;
+  for (var i = 1; i < slides.length; i++) {
+    slide = slides[i];
+    if (slide.properties.continued === "true" || slide.properties.count === "false") {
+      els[i - 1].className += ' has-continuation';
+    }
+  }
+  var s = d.createElement("style");
+  s.type = "text/css"; s.innerHTML = "@media print { .has-continuation { display: none; } }";
+  d.head.appendChild(s);
+})(document);
+// delete the temporary CSS (for displaying all slides initially) when the user
+// starts to view slides
+(function() {
+  var deleted = false;
+  slideshow.on('beforeShowSlide', function(slide) {
+    if (deleted) return;
+    var sheets = document.styleSheets, node;
+    for (var i = 0; i < sheets.length; i++) {
+      node = sheets[i].ownerNode;
+      if (node.dataset["target"] !== "print-only") continue;
+      node.parentNode.removeChild(node);
+    }
+    deleted = true;
+  });
+})();</script>
+
+<script>
+(function() {
+  var links = document.getElementsByTagName('a');
+  for (var i = 0; i < links.length; i++) {
+    if (/^(https?:)?\/\//.test(links[i].getAttribute('href'))) {
+      links[i].target = '_blank';
+    }
+  }
+})();
+</script>
+
+<script>
+slideshow._releaseMath = function(el) {
+  var i, text, code, codes = el.getElementsByTagName('code');
+  for (i = 0; i < codes.length;) {
+    code = codes[i];
+    if (code.parentNode.tagName !== 'PRE' && code.childElementCount === 0) {
+      text = code.textContent;
+      if (/^\\\((.|\s)+\\\)$/.test(text) || /^\\\[(.|\s)+\\\]$/.test(text) ||
+          /^\$\$(.|\s)+\$\$$/.test(text) ||
+          /^\\begin\{([^}]+)\}(.|\s)+\\end\{[^}]+\}$/.test(text)) {
+        code.outerHTML = code.innerHTML;  // remove <code></code>
+        continue;
+      }
+    }
+    i++;
+  }
+};
+slideshow._releaseMath(document);
+</script>
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+(function () {
+  var script = document.createElement('script');
+  script.type = 'text/javascript';
+  script.src  = 'https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-MML-AM_CHTML';
+  if (location.protocol !== 'file:' && /^https?:/.test(script.src))
+    script.src  = script.src.replace(/^https?:/, '');
+  document.getElementsByTagName('head')[0].appendChild(script);
+})();
+</script>
+  </body>
+</html>

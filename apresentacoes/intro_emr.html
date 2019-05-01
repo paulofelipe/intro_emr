@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+  <head>
+    <title>Introdução ao 📦 emr</title>
+    <meta charset="utf-8" />
+    <meta name="author" content="Paulo Felipe Alencar 👨‍💻" />
+    
+    <link rel="stylesheet" href="xaringan-themer.css" type="text/css" />
+    <link rel="stylesheet" href="custom.css" type="text/css" />
+  </head>
+  <body>
+    <textarea id="source">
+class: center, middle, title-slide
+
+# Introdução ao 📦 emr
+## Simulações Numéricas para Análise de Políticas Comerciais
+### Paulo Felipe Alencar 👨‍💻
+### Abril de 2019
+
+---
+
+
+
+
+
+
+class: center, middle, inverse
+# Motivação 🤓
+
+---
+## Introdução
+
+- Necessidade de modelos para análise de políticas comerciais
+
+- Equilíbrio Parcial x Equilíbrio Geral
+
+- R vs linguagens específicas: GEMPACK e GAMS
+
+- Por que não usar o pacote `gEcon`? 🤷
+
+- A ideia é substituir o GTAP? ❌
+
+---
+
+class: center, middle, inverse
+# O pacote 📦
+
+---
+## Sobre o emr
+
+- Opção *open source* para simulações baseadas em modelos econômicos aplicados
+
+- O pacote `emr` é apenas uma alternativa que **tenta** seguir a linha geral do GEMPACK, mas não há necessidade de linearização do modelo
+
+- Aproveita o poder de manipulação e visualização de dados do R
+
+- O modelo pode ser escrito em variações ou não, mas é preferível escrever em variações (reduz o número de parâmetros do modelo)
+
+- O pacote ainda não foi testado com modelos de larga escala, mas um dos *solvers* (pacote BB) promete resolver grandes sistemas de equações não-lineares 
+
+- Instalação:
+
+
+```r
+remotes::install_github('paulofelipe/emr')
+```
+
+
+---
+## Lógica para construção de modelos
+
+- Modelos mais complexos podem rapidamente ter um grande número de equações, demandando recursos computacionais para a sua solução
+
+- Na prática, busca-se aplicar algum método de eliminação (substituição). No GEMPACK, é aplicada uma "condensação"
+   
+    - Variáveis que são exógenas e não serão alteradas nas simulações;
+    - Substituição
+
+---
+## Estrutura do modelo
+
+- No `emr`, utilizamos a lógica descrita em [A simple structure for CGE models](https://jgea.org/resources/download/6539.pdf) de Zhang (2013)
+
+&lt;img src="structure_var_eq.png" width="629" style="display: block; margin: auto;" /&gt;
+
+---
+
+## Estrutura para modelos
+
+- Cada variável tem dois atributos:
+
+    1. Exógena ou Endógenas
+    2. Definida (*defined*) ou Não-Definida (*undefined*)
+
+- Para todos os efeitos, *trataremos as variáveis exógenas como parâmetros*. Ou sejam, são fixas e seus valores não dependem de nenhuma variável endógena
+
+- Na prática, quando estivermos falando de variáveis, estaremos sempre falando de variáveis endógenas, restando saber se ela é definida ou não
+
+- Dois de tipos de equações:
+
+    1. Definidoras (*defining*) 
+    2. De equilíbrio (*mcc - market clearing condition*). Exemplo: Oferta = Demanda
+
+---
+
+class: center, middle, inverse
+# Primeiro Exemplo
+
+---
+
+## Exemplo: Oferta e Demanda
+
+- Curva de Oferta
+`$$\color{red}{Q^s} = k^s \color{blue}{P}^\epsilon, \epsilon &gt; 0$$`
+
+- Curva de Demanda
+
+`$$\color{red}{Q^d} = k^d \color{blue}{P}^\eta, \eta &lt; 0$$`
+
+- Equilíbrio de Mercado
+
+`$$\color{red}{Q^s} = \color{red}{Q^d}$$`
+
+- 3 variáveis ( `\(\color{red}{Q^s}\)`, `\(\color{red}{Q^d}\)` e `\(\color{blue}{P}\)`) e 3 equações
+
+- 4 parâmetros ( `\(k^s\)`, `\(k^d\)`, `\(\epsilon\)` e `\(\eta\)`)
+
+-   `\(k^s\)` e `\(k^d\)` podem ser interpretadas como variáveis exógenas (outros fatores que afetam a oferta e a demanda) 
+
+- As duas primeiras equações **definem** `\(Q^s\)` e `\(Q^d\)` e a terceira equação serve de condição de equilíbrio para `\(P\)`
+
+---
+
+## Exemplo: Oferta e Demanda
+
+- Dados: 
+
+    - `\(Q^s = Q^d = 10\)`
+    - `\(P = 1\)`
+    - `\(\eta = -1\)`
+    - `\(\epsilon = 1\)`
+    - `\(k^s = k^d = 10\)` (calibrado: `\(k^s = Q^s/P^\epsilon\)`)
+
+- Carregando o pacote:
+
+
+```r
+library(emr)
+```
+
+- Iniciando os componentes do modelo:
+
+
+```r
+params &lt;- list()
+variables &lt;- list()
+equations &lt;- list()
+# Um modelo pode ter mais dois componentes:
+# Sets e update_equations (serão tratados no futuro)
+```
+
+
+---
+
+## Oferta
+
+$$ Q^s = k^s P^\epsilon $$
+
+- Definindo parâmetros 
+
+
+
+```r
+params[["k_s"]] &lt;- create_param(
+  value = 10,
+  indexes = list(k_s = "k_s"),
+  desc = "shift da curva de oferta"
+)
+
+params[["epsilon"]] &lt;- create_param(
+  value = 1,
+  indexes = list(epsilon = "epsilon"),
+  desc = "elasticidade-preço da oferta"
+)
+```
+
+---
+
+## Oferta
+
+$$ Q^s = k^s P^\epsilon $$
+
+- Definindo variáveis
+
+
+```r
+variables[["Q_s"]] &lt;- create_variable(
+  value = 10,
+  indexes = list(Q_s = "Q_s"),
+  type = "defined",
+  desc = "quantidade ofertada"
+)
+
+variables[["P"]] &lt;- create_variable(
+  value = 1,
+  indexes = list(P = "P"),
+  type = "undefined",
+  desc = "preço"
+)
+```
+
+
+---
+
+## Oferta
+
+$$ Q^s = k^s P^\epsilon $$
+
+- Definindo a equação
+
+
+```r
+equations[["E_Q_s"]] &lt;- create_equation(
+  'Q_s = k_s * P^epsilon',
+  type = "defining",
+  desc = "quantidade ofertada"
+)
+```
+
+
+---
+## Demanda
+
+$$ Q^d = k^d P^\eta $$
+
+- Definindo parâmetros e variáveis
+
+
+```r
+params[["k_d"]] &lt;- create_param(
+  value = 10,
+  indexes = list(k_d = "k_d"),
+  desc = "shift da curva de demanda"
+)
+
+params[["eta"]] &lt;- create_param(
+  value = -1,
+  indexes = list(eta = "eta"),
+  desc = "elasticidade-preço da demanda"
+)
+
+variables[["Q_d"]] &lt;- create_variable(
+  value = 10,
+  indexes = list(Q_d = "Q_d"),
+  type = "defined",
+  desc = "quantidade demandada"
+)
+```
+
+---
+## Demanda
+
+$$ Q^d = k^d P^\eta $$
+
+- Definindo a equação
+
+
+```r
+equations[["E_Q_d"]] &lt;- create_equation(
+  'Q_d = k_d * P^eta',
+  type = "defining",
+  desc = "quantidade demandada"
+)
+```
+
+
+---
+## Equilíbrio de mercado
+
+- Deve ser uma expressão que deverá convergir a zero
+
+`$$Q^s - Q^d$$`
+
+
+```r
+equations[["E_P"]] &lt;- create_equation(
+  'Q_s - Q_d',
+  type = "mcc",
+  desc = "equilíbrio de mercado"
+)
+```
+
+---
+## Definindo o modelo
+
+
+```r
+modelo &lt;- list(
+  params = params,
+  variables = variables,
+  equations = equations
+)
+```
+
+- Checando se o modelo está corretamente especificado
+
+
+```r
+sol &lt;- solve_emr(modelo)
+sol$sol$message
+```
+
+```
+## [1] "Successful convergence"
+```
+
+```r
+# Elementos da solução
+names(sol)
+```
+
+```
+## [1] "sol"                    "params"                
+## [3] "variables"              "updated_data"          
+## [5] "variables_descriptions" "params_descriptions"
+```
+
+---
+## Experimento
+
+- Simular um choque positivo na oferta  `\({k^s}^{\prime} = 11\)`
+
+
+```r
+modelo$params$k_s$value &lt;- 11
+```
+
+- Precisamos resolver o modelos novamente:
+
+
+```r
+sol2 &lt;- solve_emr(modelo)
+sol2$sol$message
+```
+
+```
+## [1] "Successful convergence"
+```
+
+---
+## Experimento - Resultados
+
+
+```r
+sol2$variables
+```
+
+```
+## $Q_s
+##      Q_s 
+## 10.48809 
+## 
+## $P
+##         P 
+## 0.9534626 
+## 
+## $Q_d
+##      Q_d 
+## 10.48809
+```
+
+---
+class: center, middle, inverse
+# Modelo em variações
+
+---
+## Utilizando variações
+
+- Iremos denotar a variação da variável `\(X\)` como:
+
+$$ \hat{X} = \frac{X'}{X}, $$
+em que `\(X'\)` é o valor de `\(X\)` no novo equilíbrio.
+
+- Alguns exemplos de reescrita em variações:
+
+    - `\(Z = XY \Rightarrow \hat{Z} = \hat{X}\hat{Y}\)`
+    - `\(Z = X + Y \Rightarrow \hat{Z} = \hat{X} \frac{X}{Z} + \hat{Y} \frac{Y}{Z}\)`
+    - `\(Z = X^2 \Rightarrow \hat{Z} = \hat{X}^2\)`
+    - `\(P = \left[\sum_i (\alpha_i p_i)^{1-\sigma}\right]^{\frac{1}{1 - \sigma}} \Rightarrow \hat{P} = \left[\sum_i \pi_i (\hat{\alpha}_i \hat{p}_i)^{1-\sigma}\right]^{\frac{1}{1 - \sigma}}\)`, em que `\(\pi_i\)` é a participação no dispêndio
+
+---
+## Oferta e Demanda em Variações
+
+- Reescrevendo o modelo em variações:
+
+- Curva de Oferta
+$$ \hat{Q}^s = \hat{k}^s \hat{P}^\epsilon, \epsilon &gt; 0 $$
+
+- Curva de Demanda
+
+`$$\hat{Q}^d = \hat{k}^d \hat{P}^\eta, \eta &lt; 0$$`
+
+- Equilíbrio de Mercado
+
+$$ \hat{Q}^s = \hat{Q}^d$$
+
+---
+## Exemplo: Oferta e Demanda em Variações
+
+- Dados: 
+
+    - `\(\hat{Q}^s = \hat{Q}^d = 1\)`
+    - `\(\hat{P} = 1\)`
+    - `\(\eta = -1\)`
+    - `\(\epsilon = 1\)`
+    - `\(\hat{k}^s = \hat{k}^d = 1\)`
+
+
+- Iniciando os componentes do modelo:
+
+
+```r
+params &lt;- list()
+variables &lt;- list()
+equations &lt;- list()
+```
+
+
+---
+
+## Oferta
+
+$$ \hat{Q}^s = \hat{k}^s \hat{P}^\epsilon $$
+
+- Definindo parâmetros 
+
+
+
+```r
+params[["k_s"]] &lt;- create_param(
+  value = 1,
+  indexes = list(k_s = "k_s"),
+  desc = "shift da curva de oferta"
+)
+
+params[["epsilon"]] &lt;- create_param(
+  value = 1,
+  indexes = list(epsilon = "epsilon"),
+  desc = "elasticidade-preço da oferta"
+)
+```
+
+---
+
+## Oferta
+
+$$ \hat{Q}^s = \hat{k}^s \hat{P}^\epsilon $$
+
+- Definindo variáveis
+
+
+```r
+variables[["Q_s"]] &lt;- create_variable(
+  value = 1,
+  indexes = list(Q_s = "Q_s"),
+  type = "defined",
+  desc = "quantidade ofertada"
+)
+
+variables[["P"]] &lt;- create_variable(
+  value = 1,
+  indexes = list(P = "P"),
+  type = "undefined",
+  desc = "preço"
+)
+```
+
+
+---
+
+## Oferta
+
+$$ \hat{Q}^s = \hat{k}^s \hat{P}^\epsilon $$
+
+- Definindo a equação
+
+
+```r
+equations[["E_Q_s"]] &lt;- create_equation(
+  'Q_s = k_s * P^epsilon',
+  type = "defining",
+  desc = "quantidade ofertada"
+)
+```
+
+
+---
+## Demanda
+
+- Definindo parâmetros e variáveis
+
+
+```r
+params[["k_d"]] &lt;- create_param(
+  value = 1,
+  indexes = list(k_d = "k_d"),
+  desc = "shift da curva de demanda"
+)
+
+params[["eta"]] &lt;- create_param(
+  value = -1,
+  indexes = list(eta = "eta"),
+  desc = "elasticidade-preço da demanda"
+)
+
+variables[["Q_d"]] &lt;- create_variable(
+  value = 1,
+  indexes = list(Q_d = "Q_d"),
+  type = "defined",
+  desc = "quantidade demandada"
+)
+```
+
+---
+## Demanda
+
+$$ \hat{Q}^d = \hat{k}^d \hat{P}^\eta $$
+
+- Definindo a equação
+
+
+```r
+equations[["E_Q_d"]] &lt;- create_equation(
+  'Q_d = k_d * P^eta',
+  type = "defining",
+  desc = "quantidade demandada"
+)
+```
+
+
+---
+## Equilíbrio de mercado
+
+- Deve ser uma expressão que deverá convergir a zero
+
+`$$\hat{Q}^s - \hat{Q}^d$$`
+
+
+```r
+equations[["E_P"]] &lt;- create_equation(
+  'Q_s - Q_d',
+  type = "mcc",
+  desc = "equilíbrio de mercado"
+)
+```
+
+---
+## Definindo o modelo
+
+
+```r
+modelo_var &lt;- list(
+  params = params,
+  variables = variables,
+  equations = equations
+)
+```
+
+- Checando se o modelo está corretamente especificado
+
+
+```r
+sol &lt;- solve_emr(modelo_var)
+sol$sol$message
+```
+
+```
+## [1] "Successful convergence"
+```
+
+---
+## Experimento
+
+- Simular um choque positivo na oferta  `\({k^s}^{\prime} = 1.1\)`
+
+
+```r
+modelo_var$params$k_s$value &lt;- 1.1
+```
+
+- Precisamos resolver o modelos novamente:
+
+
+```r
+sol2 &lt;- solve_emr(modelo_var)
+sol2$sol$message
+```
+
+```
+## [1] "Successful convergence"
+```
+
+---
+## Experimento - Resultados
+
+
+```r
+sol2$variables
+```
+
+```
+## $Q_s
+##      Q_s 
+## 1.048809 
+## 
+## $P
+##         P 
+## 0.9534626 
+## 
+## $Q_d
+##      Q_d 
+## 1.048809
+```
+
+---
+
+class: center, middle, inverse
+# Exercício ✍️
+
+---
+
+# Exercício
+
+- Inclua um **parâmetro** de tarifa no modelo anterior
+
+- Utilize `\(\tau = (1 + t)\)` para criar um gap entre o preço do consumidor e o preço do produtor
+
+- No equilíbrio inicial, `\(\tau = 1\)`
+
+- Simule o efeito do estabelecimento de uma tarifa `\(t\)` de 10%
+
+- Qual é a variação na quantidade de equilíbrio e no preço recebido pelo produtor?
+    </textarea>
+<style data-target="print-only">@media screen {.remark-slide-container{display:block;}.remark-slide-scaler{box-shadow:none;}}</style>
+<script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
+<script>var slideshow = remark.create({
+"highlightStyle": "github",
+"highlightLines": true,
+"countIncrementalSlides": false
+});
+if (window.HTMLWidgets) slideshow.on('afterShowSlide', function (slide) {
+  window.dispatchEvent(new Event('resize'));
+});
+(function(d) {
+  var s = d.createElement("style"), r = d.querySelector(".remark-slide-scaler");
+  if (!r) return;
+  s.type = "text/css"; s.innerHTML = "@page {size: " + r.style.width + " " + r.style.height +"; }";
+  d.head.appendChild(s);
+})(document);
+
+(function(d) {
+  var el = d.getElementsByClassName("remark-slides-area");
+  if (!el) return;
+  var slide, slides = slideshow.getSlides(), els = el[0].children;
+  for (var i = 1; i < slides.length; i++) {
+    slide = slides[i];
+    if (slide.properties.continued === "true" || slide.properties.count === "false") {
+      els[i - 1].className += ' has-continuation';
+    }
+  }
+  var s = d.createElement("style");
+  s.type = "text/css"; s.innerHTML = "@media print { .has-continuation { display: none; } }";
+  d.head.appendChild(s);
+})(document);
+// delete the temporary CSS (for displaying all slides initially) when the user
+// starts to view slides
+(function() {
+  var deleted = false;
+  slideshow.on('beforeShowSlide', function(slide) {
+    if (deleted) return;
+    var sheets = document.styleSheets, node;
+    for (var i = 0; i < sheets.length; i++) {
+      node = sheets[i].ownerNode;
+      if (node.dataset["target"] !== "print-only") continue;
+      node.parentNode.removeChild(node);
+    }
+    deleted = true;
+  });
+})();</script>
+
+<script>
+(function() {
+  var links = document.getElementsByTagName('a');
+  for (var i = 0; i < links.length; i++) {
+    if (/^(https?:)?\/\//.test(links[i].getAttribute('href'))) {
+      links[i].target = '_blank';
+    }
+  }
+})();
+</script>
+
+<script>
+slideshow._releaseMath = function(el) {
+  var i, text, code, codes = el.getElementsByTagName('code');
+  for (i = 0; i < codes.length;) {
+    code = codes[i];
+    if (code.parentNode.tagName !== 'PRE' && code.childElementCount === 0) {
+      text = code.textContent;
+      if (/^\\\((.|\s)+\\\)$/.test(text) || /^\\\[(.|\s)+\\\]$/.test(text) ||
+          /^\$\$(.|\s)+\$\$$/.test(text) ||
+          /^\\begin\{([^}]+)\}(.|\s)+\\end\{[^}]+\}$/.test(text)) {
+        code.outerHTML = code.innerHTML;  // remove <code></code>
+        continue;
+      }
+    }
+    i++;
+  }
+};
+slideshow._releaseMath(document);
+</script>
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+(function () {
+  var script = document.createElement('script');
+  script.type = 'text/javascript';
+  script.src  = 'https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-MML-AM_CHTML';
+  if (location.protocol !== 'file:' && /^https?:/.test(script.src))
+    script.src  = script.src.replace(/^https?:/, '');
+  document.getElementsByTagName('head')[0].appendChild(script);
+})();
+</script>
+  </body>
+</html>
