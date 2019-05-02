@@ -126,7 +126,10 @@ $$Q = k^d P^\eta $$
 `$$\color{red}{\hat{q_i}} = \hat{\alpha_i}^{1-\sigma} \left(\frac{\color{blue}{\hat{p_i}}}{\color{red}{\hat{P}}}\right)^{-\sigma}\frac{\color{red}{\hat{E}}}{\color{red}{\hat{P}}}$$`
 
 - Oferta por variedade
-`$$\color{red}{\hat{x_i}} = k_i^s \left(\frac{\color{blue}{\hat{p_i}}}{\hat{\tau_i}}\right)^{\varepsilon_i}, ~~ \tau_i = 1+t_i$$`
+`$$\color{red}{\hat{x_i}} = k_i^s \left(\frac{\color{blue}{\hat{p_i}}}{\hat{\tau_i}}\right)^{\varepsilon_i}, ~~ \hat{\tau}_i = \frac{1 + t_i^\prime}{1+t_i}$$`
+
+---
+## Sistema em Variações (Cont.)
 
 - Equilíbrio - oferta x demanda por variedade
 `$$\color{red}{\hat{q_i}} = \color{red}{\hat{x_i}}$$`
@@ -164,7 +167,7 @@ t0 &lt;- c(bra = 0, usa = 0, row = 0)
 
 
 ```r
-eta &lt;- -2 # Elasticidade-preço da demanda
+eta &lt;- -1 # Elasticidade-preço da demanda
 epsilon &lt;- c(bra = 1,usa = 10,row = 10) # Elasticidades-preço das ofertas
 sigma &lt;- 4 # Elasticidade de substituição
 ```
@@ -529,9 +532,9 @@ sol_cfl$sol$message
  &lt;/thead&gt;
 &lt;tbody&gt;
   &lt;tr&gt;
-   &lt;td style="text-align:center;width: 7em; "&gt; -2,7 &lt;/td&gt;
-   &lt;td style="text-align:center;width: 7em; "&gt; 2,77 &lt;/td&gt;
-   &lt;td style="text-align:center;width: 7em; "&gt; -5,33 &lt;/td&gt;
+   &lt;td style="text-align:center;width: 7em; "&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:center;width: 7em; "&gt; 3,57 &lt;/td&gt;
+   &lt;td style="text-align:center;width: 7em; "&gt; -3,44 &lt;/td&gt;
   &lt;/tr&gt;
 &lt;/tbody&gt;
 &lt;/table&gt;
@@ -551,21 +554,54 @@ sol_cfl$sol$message
 &lt;tbody&gt;
   &lt;tr&gt;
    &lt;td style="text-align:center;width: 7em; "&gt; bra &lt;/td&gt;
-   &lt;td style="text-align:center;width: 7em; "&gt; 1,10 &lt;/td&gt;
-   &lt;td style="text-align:center;width: 7em; "&gt; 1,10 &lt;/td&gt;
+   &lt;td style="text-align:center;width: 7em; "&gt; 2,12 &lt;/td&gt;
+   &lt;td style="text-align:center;width: 7em; "&gt; 2,12 &lt;/td&gt;
   &lt;/tr&gt;
   &lt;tr&gt;
    &lt;td style="text-align:center;width: 7em; "&gt; usa &lt;/td&gt;
-   &lt;td style="text-align:center;width: 7em; "&gt; 7,46 &lt;/td&gt;
-   &lt;td style="text-align:center;width: 7em; "&gt; -20,80 &lt;/td&gt;
+   &lt;td style="text-align:center;width: 7em; "&gt; 7,85 &lt;/td&gt;
+   &lt;td style="text-align:center;width: 7em; "&gt; -17,90 &lt;/td&gt;
   &lt;/tr&gt;
   &lt;tr&gt;
    &lt;td style="text-align:center;width: 7em; "&gt; row &lt;/td&gt;
-   &lt;td style="text-align:center;width: 7em; "&gt; 0,39 &lt;/td&gt;
-   &lt;td style="text-align:center;width: 7em; "&gt; 3,99 &lt;/td&gt;
+   &lt;td style="text-align:center;width: 7em; "&gt; 0,75 &lt;/td&gt;
+   &lt;td style="text-align:center;width: 7em; "&gt; 7,80 &lt;/td&gt;
   &lt;/tr&gt;
 &lt;/tbody&gt;
 &lt;/table&gt;
+
+---
+## Análise de Sensibilidade
+
+
+```r
+map_df(2:8, ~{
+  armington$params$sigma$value &lt;- .x
+  sol_cfl &lt;- solve_emr(armington)
+  Q &lt;- sol_cfl$variables$E/sol_cfl$variables$P - 1
+  
+  data.frame(
+    Q = Q,
+    sigma = .x
+  )
+}) %&gt;% 
+  ggplot(aes(x = sigma, y = Q)) +
+  geom_line() +
+  geom_point(size = 3) +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 0.01)) +
+  hrbrthemes::theme_ipsum()
+```
+
+---
+## Análise de Sensibilidade
+
+![](armington_nao_linear_files/figure-html/unnamed-chunk-28-1.png)&lt;!-- --&gt;
+
+
+---
+## Análise de Sensibilidade
+
+![](armington_nao_linear_files/figure-html/unnamed-chunk-29-1.png)&lt;!-- --&gt;
     </textarea>
 <style data-target="print-only">@media screen {.remark-slide-container{display:block;}.remark-slide-scaler{box-shadow:none;}}</style>
 <script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>

@@ -171,7 +171,10 @@ $$\color{red}{\hat{P}} = \left[ \sum_{i=1}^N \pi_i(\hat{\alpha_i} \color{blue}{\
 $$\color{red}{\hat{q_i}} = \hat{\alpha_i}^{1-\sigma} \left(\frac{\color{blue}{\hat{p_i}}}{\color{red}{\hat{P}}}\right)^{-\sigma}\frac{\color{red}{\hat{E}}}{\color{red}{\hat{P}}}$$
 
 - Oferta por variedade
-$$\color{red}{\hat{x_i}} = k_i^s \left(\frac{\color{blue}{\hat{p_i}}}{\hat{\tau_i}}\right)^{\varepsilon_i}, ~~ \tau_i = 1+t_i$$
+$$\color{red}{\hat{x_i}} = k_i^s \left(\frac{\color{blue}{\hat{p_i}}}{\hat{\tau_i}}\right)^{\varepsilon_i}, ~~ \hat{\tau}_i = \frac{1 + t_i^\prime}{1+t_i}$$
+
+---
+## Sistema em Variações (Cont.)
 
 - Equilíbrio - oferta x demanda por variedade
 $$\color{red}{\hat{q_i}} = \color{red}{\hat{x_i}}$$
@@ -205,7 +208,7 @@ t0 <- c(bra = 0, usa = 0, row = 0)
 - Elasticidades:
 
 ```{r}
-eta <- -2 # Elasticidade-preço da demanda
+eta <- -1 # Elasticidade-preço da demanda
 epsilon <- c(bra = 1,usa = 10,row = 10) # Elasticidades-preço das ofertas
 sigma <- 4 # Elasticidade de substituição
 ```
@@ -575,3 +578,74 @@ bind_cols(var_p_q) %>%
   column_spec(1:3, width = "7em")
 ```
 
+---
+## Análise de Sensibilidade
+
+```{r, eval=FALSE}
+map_df(2:8, ~{
+  armington$params$sigma$value <- .x
+  sol_cfl <- solve_emr(armington)
+  Q <- sol_cfl$variables$E/sol_cfl$variables$P - 1
+  
+  data.frame(
+    Q = Q,
+    sigma = .x
+  )
+}) %>% 
+  ggplot(aes(x = sigma, y = Q)) +
+  geom_line() +
+  geom_point(size = 3) +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 0.01)) +
+  hrbrthemes::theme_ipsum()
+```
+
+---
+## Análise de Sensibilidade
+
+```{r, echo=FALSE, fig.height=4, dpi=300}
+extrafont::loadfonts(device = "win", quiet = TRUE)
+map_df(2:8, ~{
+  armington$params$sigma$value <- .x
+  sol_cfl <- solve_emr(armington)
+  Q <- sol_cfl$variables$E/sol_cfl$variables$P - 1
+  
+  data.frame(
+    Q = Q,
+    sigma = .x
+  )
+}) %>% 
+  ggplot(aes(x = sigma, y = Q)) +
+  geom_line() +
+  geom_point(size = 3) +
+  labs(
+    title = "Variação na Quantidade Consumida do Bem Composto"
+  ) +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 0.01)) +
+  hrbrthemes::theme_ipsum()
+```
+
+
+---
+## Análise de Sensibilidade
+
+```{r, echo=FALSE, fig.height=4, dpi=300}
+extrafont::loadfonts(device = "win", quiet = TRUE)
+map_df(2:8, ~{
+  armington$params$sigma$value <- .x
+  sol_cfl <- solve_emr(armington)
+  
+  data.frame(
+    p_bra = sol_cfl$variables$p["bra"] - 1,
+    sigma = .x
+  )
+}) %>% 
+  ggplot(aes(x = sigma, y = p_bra)) +
+  geom_line() +
+  geom_point(size = 3) +
+  labs(
+    title = "Variação no preço do produto de origem bra",
+    y = "Variação no preço - bra"
+  ) +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 0.01)) +
+  hrbrthemes::theme_ipsum()
+```
