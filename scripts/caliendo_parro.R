@@ -44,16 +44,16 @@ params[["gammas_ii"]] <- create_param(
 variables[["c"]] <- create_variable(
   value = 1,
   indexes = sets[c("country", "sector")],
-  type = "undefined",
+  type = "defined",
   desc = "variação no custo da cesta de insumos"
 )
 
-equations[["E_c"]] <- create_equation(
-  "c[n,j] - w[n]^gamma_va[n,j] * prod(P[n,]^gammas_ii[n,,j])",
-  indexes = c("n in country", "j in sector"),
-  type = "mcc",
-  desc = "variação no custoda cesta de insumos"
-)
+# equations[["E_c"]] <- create_equation(
+#   "-c[n,j] + w[n]^gamma_va[n,j] * prod(P[n,]^gammas_ii[n,,j])",
+#   indexes = c("n in country", "j in sector"),
+#   type = "mcc",
+#   desc = "variação no custoda cesta de insumos"
+# )
 
 
 # Índice de preço setorial ------------------------------------------------
@@ -65,7 +65,11 @@ params[["pi"]] <- create_param(
 )
 
 params[["k"]] <- create_param(
-  value = 1,
+  value = left_join(tau_ij_05_df, tau_ij_93_df,
+                    by = c("importer", "exporter", "sector"),
+                    suffix = c("_05", "_93")) %>% 
+    mutate(k = value_05/value_93) %>% 
+    select(importer, exporter, sector, k),
   indexes = sets[c('importer', "exporter", 'sector')],
   desc = "variação nos custos de comércio (tarifa + iceberg)"
 )
@@ -100,8 +104,8 @@ variables[["pi_hat"]] <- create_variable(
 )
 
 equations[["E_pi_hat"]] <- create_equation(
-  "pi_hat[n,i,j] = (c[i,j]*k[n,i,j]/P[n,j])^(-theta[j])",
-  indexes = c("n in importer", "i in exporter", "j in sector"),
+  "pi_hat[n,,j] = (c[,j]*k[n,,j]/P[n,j])^(-theta[j])",
+  indexes = c("n in importer", "j in sector"),
   type = "defining",
   desc = "variação na participação bilateral"
 )
@@ -117,8 +121,8 @@ variables[["pi_new"]] <- create_variable(
 )
 
 equations[["E_pi_new"]] <- create_equation(
-  "pi_new[n,i,j] = pi_hat[n,i,j]*pi[n,i,j]",
-  indexes = c("n in importer", "i in exporter", "j in sector"),
+  "pi_new[n,,j] = pi_hat[n,,j]*pi[n,,j]",
+  indexes = c("n in importer", "j in sector"),
   type = "defining",
   desc = "novas participações bilaterais"
 )
@@ -127,7 +131,7 @@ equations[["E_pi_new"]] <- create_equation(
 # Valor da Produção -------------------------------------------------------
 
 Y_df <- x_df %>% 
-  left_join(tau_ij_93_df %>% 
+  left_join(tau_ij_05_df %>% 
               rename(tau = value)) %>% 
   group_by(exporter, sector) %>% 
   summarise(Y = sum(value/tau)/1e10)
@@ -156,7 +160,7 @@ equations[["E_Y"]] <- create_equation(
 # Receita Tarifária -------------------------------------------------------
 
 R_df <- x_df %>% 
-  left_join(tau_ij_93_df %>% 
+  left_join(tau_ij_05_df %>% 
               rename(tau = value)) %>% 
   group_by(importer, sector) %>% 
   summarise(R = sum((tau - 1) * value/tau)/1e10)
@@ -178,9 +182,15 @@ equations[["E_R"]] <- create_equation(
 
 # Novo Dispêndio ----------------------------------------------------------
 
+# params[["D"]] <- create_param(
+#   value = D_df %>% 
+#     mutate(value = value/1e10),
+#   indexes = sets[c("country")],
+#   desc = "déficits/superávits por país"
+# )
+
 params[["D"]] <- create_param(
-  value = D_df %>% 
-    mutate(value = value/1e10),
+  value = 0,
   indexes = sets[c("country")],
   desc = "déficits/superávits por país"
 )
@@ -192,7 +202,7 @@ params[["L"]] <- create_param(
   desc = "estoque de trabalho (valor adicionado)"
 )
 
-tau_df <- tau_ij_93_df %>% 
+tau_df <- tau_ij_05_df %>% 
   mutate(tau = value -1) %>% 
   select(-value)
 
@@ -236,16 +246,16 @@ equations[["E_X"]] <- create_equation(
 variables[["w"]] <- create_variable(
   value = 1,
   indexes = sets["country"],
-  type = "undefined",
+  type = "defined",
   desc = "variação nos salários"
 )
 
-equations[["E_w"]] <- create_equation(
-  "(w[n]*L[n])/sum(gamma_va[n,] * Y[n,]) - 1",
-  indexes = "n in country",
-  type = "mcc",
-  desc = "equilíbrio no mercado de trabalho (valor adicionado)"
-)
+# equations[["E_w"]] <- create_equation(
+#   "w[n] - sum(gamma_va[n,] * Y[n,])/L[n]",
+#   indexes = "n in country",
+#   type = "mcc",
+#   desc = "equilíbrio no mercado de trabalho (valor adicionado)"
+# )
 
 
 cp_model <- list(
@@ -255,6 +265,6 @@ cp_model <- list(
   equations = equations
 )
 
-system.time(sol <- solve_emr(cp_model, trace = TRUE, M = 300))
+system.time(sol <- solve_emr(cp_model, trace = TRUE, tol = 1e-7))
 
             
