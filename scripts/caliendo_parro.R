@@ -25,7 +25,6 @@ sets <- list(
   input = sector
 )
 
-
 # Custo da cesta de insumos -----------------------------------------------
 
 params[["gamma_va"]] <- create_param(
@@ -100,8 +99,8 @@ variables[["pi_hat"]] <- create_variable(
 )
 
 equations[["E_pi_hat"]] <- create_equation(
-  "pi_hat[n,i,j] = (c[i,j]*k[n,i,j]/P[n,j])^(-theta[j])",
-  indexes = c("n in importer", "i in exporter", "j in sector"),
+  "pi_hat[n,,j] = (c[,j]*k[n,,j]/P[n,j])^(-theta[j])",
+  indexes = c("n in importer", "j in sector"),
   type = "defining",
   desc = "variação na participação bilateral"
 )
@@ -117,8 +116,8 @@ variables[["pi_new"]] <- create_variable(
 )
 
 equations[["E_pi_new"]] <- create_equation(
-  "pi_new[n,i,j] = pi_hat[n,i,j]*pi[n,i,j]",
-  indexes = c("n in importer", "i in exporter", "j in sector"),
+  "pi_new[n,,j] = pi_hat[n,,j]*pi[n,,j]",
+  indexes = c("n in importer", "j in sector"),
   type = "defining",
   desc = "novas participações bilaterais"
 )
@@ -130,11 +129,11 @@ Y_df <- x_df %>%
   left_join(tau_ij_93_df %>% 
               rename(tau = value)) %>% 
   group_by(exporter, sector) %>% 
-  summarise(Y = sum(value/tau)/1e10)
+  summarise(Y = sum(value/tau)/1e5)
 
 X_df <- x_df %>% 
   group_by(importer, sector) %>% 
-  summarise(value = sum(value)/1e10) %>% 
+  summarise(value = sum(value)/1e5) %>% 
   ungroup() %>% 
   mutate_if(is.factor, as.character)
 
@@ -159,7 +158,7 @@ R_df <- x_df %>%
   left_join(tau_ij_93_df %>% 
               rename(tau = value)) %>% 
   group_by(importer, sector) %>% 
-  summarise(R = sum((tau - 1) * value/tau)/1e10)
+  summarise(R = sum((tau - 1) * value/tau)/1e5)
 
 variables[["R"]] <- create_variable(
   value = R_df,
@@ -179,15 +178,14 @@ equations[["E_R"]] <- create_equation(
 # Novo Dispêndio ----------------------------------------------------------
 
 params[["D"]] <- create_param(
-  value = D_df %>% 
-    mutate(value = value/1e10),
+  value = 0, #D_df %>% mutate(value = value/1e5),
   indexes = sets[c("country")],
   desc = "déficits/superávits por país"
 )
 
 params[["L"]] <- create_param(
   value = L_df %>% 
-    mutate(value = value/1e10),
+    mutate(value = value/1e5),
   indexes = sets[c("country")],
   desc = "estoque de trabalho (valor adicionado)"
 )
@@ -241,20 +239,90 @@ variables[["w"]] <- create_variable(
 )
 
 equations[["E_w"]] <- create_equation(
-  "(w[n]*L[n])/sum(gamma_va[n,] * Y[n,]) - 1",
+  "w[n] - sum(gamma_va[n,] * Y[n,])/L[n]",
   indexes = "n in country",
   type = "mcc",
   desc = "equilíbrio no mercado de trabalho (valor adicionado)"
 )
 
+# Equações de atualização -----------------------------
+
+variables[["P_c"]] <- create_variable(
+  value = 1,
+  indexes = sets["country"],
+  type = "defined",
+  desc = "variação no índice de preços ao consumidor"
+)
+
+update_equations[["P_c"]] <- create_equation(
+  "P_c[n] = prod(P[n,]^alpha[n,])",
+  indexes = "n in country",
+  desc = "Variação no índice de preços ao consumidor"
+)
+
+
+# modelo ------------------------------------------------------------------
 
 cp_model <- list(
   sets = sets,
   params = params,
   variables = variables,
-  equations = equations
+  equations = equations,
+  update_equations = update_equations
 )
 
-system.time(sol <- solve_emr(cp_model, trace = TRUE, M = 300))
+system.time(sol <- solve_emr2(cp_model, trace = FALSE, tol = 1e-7))
 
+# Contrafactual -----------------------------------------------------------
+
+cp_model2 <- list(
+  sets = sets,
+  params = params,
+  variables = variables,
+  equations = equations,
+  update_equations = update_equations
+)
+
+cp_model2$params$L$value[] <- params$L$value * sol$variables$w
+cp_model2$params$pi$value[] <- sol$variables$pi_new
+cp_model2$variables$X$value[] <- sol$variables$X
+
+nafta <- c("USA", "Mexico", "Canada")
+
+k_cfl <- left_join(tau_ij_05_df, tau_ij_93_df,
+                   by = c("importer", "exporter", "sector"),
+                   suffix = c("_05", "_93")) %>% 
+  mutate(
+    k = case_when(
+      importer %in% nafta & exporter %in% nafta ~ value_05/value_93,
+      TRUE ~ 1
+    )
+  ) %>% 
+    select(importer, exporter, sector, k)
+
+tau_cfl <- left_join(tau_ij_05_df, tau_ij_93_df,
+                     by = c("importer", "exporter", "sector"),
+                     suffix = c("_05", "_93")) %>% 
+  mutate(
+    tau = case_when(
+      importer %in% nafta & exporter %in% nafta ~ value_05 - 1,
+      TRUE ~ value_93 - 1
+    )
+  ) %>% 
+  select(importer, exporter, sector, tau)
             
+cp_model2$params[["k"]] <- create_param(
+  value = k_cfl,
+  indexes = sets[c('importer', "exporter", 'sector')],
+  desc = "variação nos custos de comércio (tarifa + iceberg)"
+)
+
+cp_model2$params[["tau"]] <- create_param(
+  value = tau_cfl,
+  indexes = sets[c("importer", "exporter", "sector")],
+  desc = "tarifa por importador, exportador, setor"
+)
+
+system.time(sol2 <- solve_emr2(cp_model2, trace = FALSE, tol = 1e-7))
+
+round((sol2$variables$w/sol2$updated_data$P_c - 1) * 100, 2)
