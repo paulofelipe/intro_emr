@@ -16,20 +16,20 @@
  *    - remarkjs wiki: https://github.com/gnab/remark/wiki
  *
  * ------------------------------------------------------- */
-@import url(https://fonts.googleapis.com/css?family=Roboto+Condensed);
-@import url(https://fonts.googleapis.com/css?family=Roboto:700);
+@import url(https://fonts.googleapis.com/css?family=Roboto+Condensed:300);
+@import url(https://fonts.googleapis.com/css?family=Yanone+Kaffeesatz);
 @import url(https://fonts.googleapis.com/css?family=Droid+Mono);
 
 
 body {
   font-family: Roboto Condensed, 'Palatino Linotype', 'Book Antiqua', Palatino, 'Microsoft YaHei', 'Songti SC', serif;
   font-weight: ;
-  color: #18273F;
+  color: #000000;
 }
 h1, h2, h3 {
-  font-family: Roboto;
+  font-family: 'Yanone Kaffeesatz';
   font-weight: normal;
-  color: #e55039;
+  color: #000000;
 }
 .remark-slide-content {
   background-color: #ffffff;
@@ -40,10 +40,10 @@ h1, h2, h3 {
   padding: 1em 4em 1em 4em;
 }
 .remark-slide-content h1 {
-    font-size: 45px;
+    font-size: 55px;
 }
 .remark-slide-content h2 {
-    font-size: 35px;
+    font-size: 40px;
 }
 .remark-slide-content h3 {
     font-size: 30px;
@@ -61,7 +61,7 @@ h1, h2, h3 {
   
 }
 .remark-slide-number {
-  color: #e55039;
+  color: #000000;
   opacity: 1;
   font-size: 0.9em;
 }
@@ -81,15 +81,15 @@ a, a > code {
   background-color: #D2B6E8;
 }
 .inverse {
-  background-color: #e55039;
+  background-color: #ffffff;
   color: #E9EBEE;
   
 }
 .inverse h1, .inverse h2, .inverse h3 {
-  color: #E9EBEE;
+  color: #000000;
 }
 .title-slide, .title-slide h1, .title-slide h2, .title-slide h3 {
-  color: #e55039;
+  color: #000000;
 }
 .title-slide {
   background-color: #ffffff;
@@ -145,7 +145,7 @@ th, td { padding: 5px; }
 .remark-slide thead, .remark-slide tfoot, .remark-slide tr:nth-child(even) { background: #D3D7DE }
 table.dataTable tbody {
   background-color: #ffffff;
-  color: #18273F;
+  color: #000000;
 }
 table.dataTable.display tbody tr.odd {
   background-color: #ffffff;
@@ -157,10 +157,10 @@ table.dataTable.hover tbody tr:hover, table.dataTable.display tbody tr:hover {
   background-color: rgba(255, 255, 255, 0.5);
 }
 .dataTables_wrapper .dataTables_length, .dataTables_wrapper .dataTables_filter, .dataTables_wrapper .dataTables_info, .dataTables_wrapper .dataTables_processing, .dataTables_wrapper .dataTables_paginate {
-  color: #18273F;
+  color: #000000;
 }
 .dataTables_wrapper .dataTables_paginate .paginate_button {
-  color: #18273F !important;
+  color: #000000 !important;
 }
 
 @page { margin: 0; }

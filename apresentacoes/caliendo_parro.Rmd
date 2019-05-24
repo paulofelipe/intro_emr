@@ -1,6 +1,8 @@
 ---
 title: "Implementando Caliendo e Parro (2015)"
-author: "Paulo Felipe Alencar | `r emo::ji('man_technologist')` | 04/2019"
+subtitle: "Aplicação com o pacote emr"
+author: 'Paulo Felipe Alencar'
+date: "Abril, 2019"
 output:
   xaringan::moon_reader:
     lib_dir: libs
@@ -8,6 +10,7 @@ output:
       highlightStyle: github
       highlightLines: true
       countIncrementalSlides: false
+      SlideClass: [middle]
       titleSlideClass: [center, middle]
     css: [xaringan-themer.css,custom.css]
 header-includes:
@@ -20,34 +23,37 @@ options(htmltools.dir.version = FALSE)
 
 ```{r xaringan-themer, include = FALSE}
 library(xaringanthemer)
+library(icon)
 
-base_color <- "#e55039"
+base_color <- "#000000"
 xaringanthemer::mono_light(
   #header_font_google = google_font("Roboto", "400", "400i"),
   #text_font_google   = google_font("Roboto", "300", "300i"),
   header_color = base_color,
-  inverse_background_color = base_color,
   background_color = "#ffffff",
+  text_color = base_color,
   text_font_size = '20px',
   link_color = "#E67245",
   title_slide_background_color = "#ffffff",
   title_slide_text_color = base_color,
-  header_font_google   = google_font("Roboto", "700"),
-  text_font_google     = google_font("Roboto Condensed"),
+  #header_font_google   = google_font("Roboto", "500"),
+  text_font_google     = google_font("Roboto Condensed", "300"),
   code_font_google     = google_font("Droid Mono"),
   code_highlight_color = "#D2B6E8",
-  header_h1_font_size = '45px',
-  header_h2_font_size = '35px',
+  header_h1_font_size = '55px',
+  header_h2_font_size = '40px',
   header_h3_font_size = '30px',
-  text_slide_number_color = base_color
+  text_slide_number_color = base_color,
+  inverse_background_color = "#ffffff",
+  inverse_header_color = "#000000"
 )
 ```
 
 class: center, middle, inverse
-# Sobre o Modelo
+# Sobre o Modelo `r fa_laptop_code()`
+
 
 ---
-
 ## Sistema de Equações
 
 - Variação no custo da cesta de insumos
@@ -65,7 +71,6 @@ $$\color{red}{\hat{\pi}_{ni}^j} = \left[\frac{\color{blue}{\hat{c}^j_i} \hat{k}_
 $$\color{red}{\pi_{ni}^{j^\prime}} = \color{red}{\hat{\pi}_{ni}^j} \pi_{ni}^j$$
 
 ---
-
 ## Sistema de Equações (Cont.)
 
 - Valor da Produção
