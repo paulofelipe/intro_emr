@@ -259,7 +259,8 @@ krugman <- list(
 krugman$params$tau$value['G1', 'R1', 'R2'] <- 3
 
 system.time(
-  sol <- solve_emr_block(krugman, trace = TRUE, triter = 50, scale_alpha = c(0.15, 0.15), tol = 1e-8)
+  sol <- solve_emr_block(krugman, trace = TRUE,
+                         scale_alpha = c(0.1,0.7), tol = 1e-8)
 )
 
 memisc::to.data.frame(sol$variables$PF, as.vars = 0, name = "value")
