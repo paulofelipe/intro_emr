@@ -195,8 +195,8 @@ armington$params$tau$value[["usa"]] <- 1.1
 
 # Resolvendo o modelo -----------------------------------------------------
 
-sol_cfl <- solve_emr_block(armington, trace = TRUE, scale_alpha = -0.03)
-sol_cfl$sol$message
+sol_cfl <- solve_emr_block(armington, trace = TRUE, scale_alpha = 0.05)
+#sol_cfl$sol$message
 
 # Resultados - variáveis --------------------------------------------------
 

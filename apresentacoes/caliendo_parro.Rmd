@@ -32,6 +32,7 @@ xaringanthemer::mono_light(
   header_color = base_color,
   background_color = "#ffffff",
   text_color = base_color,
+  text_bold_color = "#d35400",
   text_font_size = '20px',
   link_color = "#E67245",
   title_slide_background_color = "#ffffff",
@@ -50,7 +51,29 @@ xaringanthemer::mono_light(
 ```
 
 class: center, middle, inverse
-# Sobre o Modelo `r fa_laptop_code()`
+# Sobre o Modelo `r fa_book()`
+
+---
+class: middle
+<h2 class="center"> Visão Geral do Modelo</h2>
+
+Modelo **ricardiano** construído para avaliar os impactos em comércio e bem-estar do NAFTA. Trata-se de uma extensão ao modelo de Eaton e Kortum (2002) ao considerar as ligações entre os múltiplos setores da economia. 
+
+O comércio emerge devido às **diferenças de produtividades** entre os países na produção de um contínuo de produtos.
+
+Segundo os autores, ao adotarem um modelo mais simplificado, ganha-se um maior poder de explicação sobre os resultados. Ao adicionar mais detalhes, essa vantagem seria perdida, o que é uma crítica aos modelos de equilíbrio geral computável (CGE).
+
+---
+class: middle
+## Características do Modelo
+
+- N regiões e J setores.
+
+- Competição perfeita e retornos constantes de escala.
+
+- Bens intermediários são usados para consumo ou como materiais utilizados para produção de outros bens intermediários.
+
+- Produtores individuais em cada setor podem apresentar diferentes produtividades. A dispersão de produtividade dentro de um setor $j$ será controlada pelo parâmetro ( $\theta_j$ ). Quanto maior for a dispersão de produtividade, menor será $\theta_j$.
 
 
 ---

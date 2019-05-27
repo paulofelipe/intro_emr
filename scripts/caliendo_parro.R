@@ -105,6 +105,11 @@ params[["I0"]] <- create_param(
   desc = "absorção final inicial"
 )
 
+params[["tau0"]] <- create_param(
+  value = NA,
+  indexes = sets[c("importer", "exporter", "sector")],
+  desc = "tarifas iniciais"
+)
 
 # Índice de preço setorial ------------------------------------------------
 
@@ -183,13 +188,13 @@ equations[["E_Y"]] <- create_equation(
 
 variables[["M"]] <- create_variable(
   value = 1,
-  indexes = sets[c("importer", "sector")],
+  indexes = sets[c("importer", "exporter", "sector")],
   type = "defined",
   desc = "valor da importação por setor"
 )
 
 equations[["E_M"]] <- create_equation(
-  "M[n,j] = sum(pi_new[n,,j]/(1 + tau[n,,j]) * X[n,j])",
+  "M[n,,j] = pi_new[n,,j]/(1 + tau[n,,j]) * X[n,j]",
   indexes = c("n in importer", "j in sector"),
   type = "defining",
   desc = "novo valor da produção"
@@ -322,18 +327,45 @@ update_equations[["wp"]] <- create_equation(
   desc = "Variação no salário real"
 )
 
+variables[["TOT"]] <- create_variable(
+  value = 1,
+  indexes = sets[c("country", "country", "sector")],
+  type = "defined",
+  desc = "Variação dos termos de trocas"
+)
+
+update_equations[["TOT"]] <- create_equation(
+  "TOT[n,i,] = M0[i,n,] * c[n,] - M0[n,i,] * c[i,]",
+  indexes = c("n in country", "i in country"),
+  desc = "Variação dos termos de trocas"
+)
+
+variables[["VOT"]] <- create_variable(
+  value = 1,
+  indexes = sets[c("country", "country", "sector")],
+  type = "defined",
+  desc = "Variação dos volumes de comércio"
+)
+
+update_equations[["VOT"]] <- create_equation(
+  "VOT[n,,] = tau0[n,,] * M0[n,,] * (M[n,,]/(M0[n,,] + 1e-8) - c[,])",
+  indexes = c("n in country"),
+  desc = "Variação dos volumes de comércio"
+)
+
 variables[["W"]] <- create_variable(
   value = 1,
-  indexes = sets["country"],
+  indexes = sets[c("country")],
   type = "defined",
-  desc = "Bem-estar"
+  desc = "Variação de bem-estar"
 )
 
 update_equations[["W"]] <- create_equation(
-  "W[n] = (I[n]/I0[n])/P_c[n]",
-  indexes = "n in country",
+  "W[n] = sum(TOT[n,,])/I0[n] + sum(VOT[n,,])/I0[n]",
+  indexes = c("n in country", "i in country"),
   desc = "Variação no salário real"
 )
+
 
 # modelo ------------------------------------------------------------------
 
@@ -345,7 +377,7 @@ cp_model <- list(
   update_equations = update_equations
 )
 
-system.time(sol <- solve_emr_block(cp_model, scale_alpha = rep(0.6, 3),
+system.time(sol <- solve_emr_block(cp_model, scale_alpha = c(0.95, 0.5, 0.95),
                                    trace = TRUE, triter = 100, tol = 1e-7))
 
 # Contrafactual -----------------------------------------------------------
@@ -361,6 +393,8 @@ cp_model2 <- list(
 cp_model2$params$L$value[] <- params$L$value * sol$variables$w
 cp_model2$params$pi$value[] <- sol$variables$pi_new
 cp_model2$params$I0$value[] <- sol$variables$I
+cp_model2$params$M0$value[] <- sol$variables$M
+cp_model2$params$tau0$value[] <- sol$params$tau
 cp_model2$variables$X$value[] <- sol$variables$X
 
 nafta <- c("USA", "Mexico", "Canada")
@@ -399,7 +433,11 @@ cp_model2$params[["tau"]] <- create_param(
   desc = "tarifa por importador, exportador, setor"
 )
 
-system.time(sol2 <- solve_emr_block(cp_model2, scale_alpha = rep(0.6, 3), trace = TRUE,
+system.time(sol2 <- solve_emr_block(cp_model2, scale_alpha = c(0.95, 0.4, 0.95), trace = TRUE,
                                     triter = 100, tol = 1e-7))
 
-round((sol2$variables$w/sol2$updated_data$P_c - 1) * 100, 2)
+enframe(round(sol2$updated_data$W  * 100, 2)) %>% 
+  filter(name %in% nafta)
+
+enframe(round((sol2$updated_data$wp - 1)  * 100, 2)) %>% 
+  filter(name %in% nafta)
