@@ -59,7 +59,7 @@ params[["theta"]] <- create_param(
 )
 
 params[["D"]] <- create_param(
-  value = 0, #D_df %>% mutate(value = value/1e6),
+  value = D_df %>% mutate(value = value/1e6),
   indexes = sets[c("country")],
   desc = "déficits/superávits por país"
 )
@@ -335,7 +335,7 @@ variables[["TOT"]] <- create_variable(
 )
 
 update_equations[["TOT"]] <- create_equation(
-  "TOT[n,i,] = M0[i,n,] * c[n,] - M0[n,i,] * c[i,]",
+  "TOT[n,i,] = M0[i,n,] * (c[n,] - 1) - M0[n,i,] * (c[i,] - 1)",
   indexes = c("n in country", "i in country"),
   desc = "Variação dos termos de trocas"
 )
@@ -377,7 +377,7 @@ cp_model <- list(
   update_equations = update_equations
 )
 
-system.time(sol <- solve_emr_block(cp_model, scale_alpha = c(0.95, 0.5, 0.95),
+system.time(sol <- solve_emr_block(cp_model, scale_alpha = rep(0.6, 3),
                                    trace = TRUE, triter = 100, tol = 1e-7))
 
 # Contrafactual -----------------------------------------------------------
@@ -433,7 +433,7 @@ cp_model2$params[["tau"]] <- create_param(
   desc = "tarifa por importador, exportador, setor"
 )
 
-system.time(sol2 <- solve_emr_block(cp_model2, scale_alpha = c(0.95, 0.4, 0.95), trace = TRUE,
+system.time(sol2 <- solve_emr_block(cp_model2, scale_alpha = rep(0.4, 3), trace = TRUE,
                                     triter = 100, tol = 1e-7))
 
 enframe(round(sol2$updated_data$W  * 100, 2)) %>% 
