@@ -538,9 +538,7 @@ sol$sol$message
 minimal$params$x3tot$value[] <- 1.10
 
 system.time(sol_cfl <- solve_emr_block(minimal, trace = TRUE, triter = 500,
-                                       alpha_min = 0.1, alpha_max = 0.5,
-                           #scale_alpha = rep(0.7, 4),
-                           tol = 1e-7))
+                                       tol = 1e-7))
 
 sol_cfl$variables$employ
 

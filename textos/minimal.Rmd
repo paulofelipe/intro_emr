@@ -1,0 +1,254 @@
+---
+title: "Implementando o MINIMAL no R"
+author: "Paulo Felipe Alencar"
+date: "05/06/2019"
+output: 
+  pdf_document:
+    number_section: true
+    citation_package: natbib
+bibliography: referencias.bib
+lang: pt-br
+header-includes:
+- \usepackage{pdflscape}
+- \newcommand{\blandscape}{\begin{landscape}}
+- \newcommand{\elandscape}{\end{landscape}}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(kableExtra)
+```
+
+# Introdução
+
+O MINIMAL^[https://www.copsmodels.com/minimal.htm] (\cite{horridge_2001}) é um modelo de equilíbrio geral simplificado utilizado em cursos introdutórios do GEMPACK. A partir desse modelo, é possível deixar claro como a teoria microeconômica do consumidor e do produtor podem ser combinadas para a construção de um modelo de equilíbrio geral. 
+
+Este modelo considera 7 setores, um investidor agregado, um agente representativo das famílias, exportações agregadas e o governo. Cada produto pode ser obtido a partir de fontes domésticas ou importadas.
+
+# Estruturas de Modelo para o Pacote `emr`
+
+## Exemplo: Oferta e Demanda 
+
+# Construindo MINIMAL no R
+
+## Dados para o Modelo
+
+Os dados para o modelo são esquematizados conforme a Figura \ref{model_database}. O esquema é similar ao de uma matriz de insumo produto, na qual os elementos das linhas vendem para os elementos das colunas. 
+
+```{r, fig.cap="Base de Dados para o Minimal(\\cite{horridge_2001}\\label{model_database})", echo=FALSE, fig.pos='h',fig.align='center'}
+knitr::include_graphics('minimal_database.PNG', dpi = 150)
+```
+
+Fica claro na \ref{model_database} que existem duas fontes (*sources*) de fornecimento de produtos: doméstica e importada. Esse produtos são demandados pelos $I$ setores produtores, pelos investidores, pelas famílias, pelas exportações^[O fornecimento de produtos importados para exportação é igual a zero.] e pelo governo. As somas das linhas para produtos (*commodities*) domésticos ou importados serão denominadas de vendas (*sales*).
+
+Adicionalmente, os fatores trabalhos e capital são demandados pelos produtores, e há uma taxação sobre a produção. Por fim, independente do demandante, existe um imposto de importação por produto. O valor arrecadado de imposto de importação será único por produto, o que resulta em uma única taxa de importação por produto.
+
+A tabela apresentada na Figura \ref{dados_australia} detalha um conjunto de valores para a Austrália a partir de dados de 1986-1987. Os valores estão a preços dos produtores. Ou seja, inclui qualquer imposto indireto que possa ter sido aplicada àquele fluxo. Para cada setor produtor, a sua produção (soma da respectiva coluna) tem que ser igual às suas vendas (soma da respectiva linha). Por exemplo, a produção do setor Agricultura-Mineração (AgricMining) foi igual 45.730, que é o mesmo valor de suas vendas.
+
+Para as importações de produtos manufaturados (Manufacture), foi recolhido o montante de 5.787. O valor total importado desses produtos foi de 42.087 (este valor já inclui o imposto de importação), o que implica em uma taxa de importação de 15,94%^[5787/(42087 - 5787).].
+
+\blandscape
+```{r, echo=FALSE, fig.cap="Base de Dados para Austrália (Milhões 1986-1987)\\label{dados_australia}"}
+knitr::include_graphics('minimal_database_australia.PNG', auto_pdf = TRUE, dpi = 150)
+```
+\elandscape
+
+## Implementação
+
+### Passos Iniciais
+
+Inicialmente, é preciso carregar o pacote `emr`:
+
+```{r}
+library(emr)
+# Carregar o tidyverse para manipulação dos dados
+library(tidyverse)
+```
+
+Adicionalmente, também é necessário ler os dados que servirão de base para o modelo. Os dados foram exportados do formato HAR do GEMPACK para csv. Nessa conversão, as diversas tabelas são empilhadas em um único csv, sendo separadas por uma linha denominada de *HEADER*.
+
+Dessa forma, vamos inicialmente identificar os *headers*:
+
+```{r}
+minimal_headers <- read_lines('../dados/minimal.csv')
+
+minimal_headers[str_detect(minimal_headers, "Header")]
+```
+
+A Tabela \ref{tab:headers_pos} detalha em quais linhas as tabelas se iniciam de fato e quantas linhas de dados existem em cada tabela. Por exemplo, a tabela `USE`, que contém os dados de uso por produto, origem e usuário, inicia-se na linha 2 e encerra na linha 156, sendo 154 linhas de dados e uma com os títulos de cada coluna. Para, ler essa tabela, podemos executar o seguinte código:
+
+
+```{r headers_pos, echo=FALSE}
+headers_names <- minimal_headers[str_detect(minimal_headers, "Header")] %>%
+  str_split(" ") %>%
+  map_chr(~{.x[2]}) %>%
+  str_remove(",")
+
+headers <- which(str_detect(minimal_headers, "Header"))
+
+data.frame(
+  names = headers_names,
+  inicio = headers + 1,
+  final = c(headers[-1] - 1, length(minimal_headers))
+) %>% 
+  mutate(num_linhas = final - inicio) %>% 
+  kable(
+    booktabs = TRUE,
+    align = 'lrrr',
+    linesep = "",
+    col.names = c("Nome", "Início", "Fim", "Nº de Linhas"),
+    caption = "Posição de Cada Header no Arquivo minimal.csv"
+  ) %>% 
+  kable_styling(position = "center", latex_options = "hold_position") %>% 
+  column_spec(1, width = "3em") %>% 
+  column_spec(2:4, width = "5em")
+```
+
+```{r}
+USE <- read_csv(
+  file = '../dados/minimal.csv',
+  skip = 1,
+  n_max = 154,
+  col_types = 'cccd'
+)
+
+head(USE)
+```
+
+As demais tabelas serão importadas quando necessárias.
+
+### Conjuntos
+
+Aqui, iremos definir os conjuntos de índices que são utilizados pelas variáveis do modelo. Por exemplo, a variável de produção é definida por produto (*commodity*) pertencente ao conjunto COM, que é composto pela descrição de todos os produtos.
+
+Para implementação do modelo, precisaos de uma lista nomeada `sets`, na qual cada elemento recebe o nome do conjunto e seus possíveis valores.
+
+Abaixo listamos todos os conjuntos:
+
+* IND: indústrias;
+* SRC: origem (doméstica ou importada);
+* COM: produtos;
+* USER: usuários (fontes de demanda);
+* IMPUSER: usuários que demandam produtos importados;
+* FINALUSER: usuários que compõem a absorção final da economia;
+* FAC: fatores primários (capital e trabalho). 
+
+
+```{r}
+IND <- c("AgricMining", "Manufacture", "Utilities", "Construction", 
+         "TradeTranspt", "FinanProprty", "Services")
+
+COM <- c("AgricMining", "Manufacture", "Utilities", "Construction", 
+         "TradeTranspt", "FinanProprty", "Services")
+
+SRC <- c("dom", "imp")
+
+USER <- c("AgricMining", "Manufacture", "Utilities", "Construction", 
+          "TradeTranspt", "FinanProprty", "Services", "Investment", "Households", 
+          "Government", "Exports")
+
+IMPUSER <- c("AgricMining", "Manufacture", "Utilities", "Construction", 
+             "TradeTranspt", "FinanProprty", "Services", "Investment", "Households", 
+             "Government")
+
+FINALUSER <- setdiff(USER, IND)
+
+FAC <- c("Labour", "Capital")
+
+sets <- list(
+  IND = IND,
+  COM = COM,
+  SRC = SRC,
+  USER = USER,
+  IMPUSER = IMPUSER,
+  FINALUSER = FINALUSER,
+  FAC = FAC
+)
+```
+
+```{r,echo=FALSE, eval=FALSE}
+lapply(sets, function(x) paste0(x, collapse = ", ")) %>%
+  data.frame(stringsAsFactors = FALSE) %>% 
+  gather(key = set, value = value) %>% 
+  kable(
+    booktabs = TRUE,
+    align = 'll',
+    col.names = c("Conjunto", "Valores"),
+  ) %>% 
+  kable_styling() %>% 
+  column_spec(2, width = '40em')
+```
+
+### Estrutura Teórica do Modelo
+
+#### Produção
+
+A estrutura de produção utilizada no minimal é apresentada na Figura ... A estrutura adotada considera um primeiro nível em que o produtor demanda bens intermediários (*commodities*) e o fator primário, que é uma combinação de capital e trabalho. É assumida uma tecnologia do tipo Leontief. Dessa forma, pode-se definir o primeiro nível da produção como:
+$$\text{X1TOT}_i = \min\left\{\frac{X_{c \{c~\in~\text{COM}\}i}}{A_{c\{c~\in~ \text{COM}\}i}}, \frac{\text{X1PRIM}_i}{A\text{1PRIM}_{i}}\right\}, ~ i \in \text{IND},$$
+em que $\text{X1TOT}_i$ é a produção total da $i$-ésima indústria, $X_{ci}$ é a demanda pelo produto $c$ pela indústria $i$ e $\text{X1PRIM}_i$ é a demanda por fatores primários pela indústria $i$. $A_{ci}$ e $A\text{1PRIM}$ podem ser entendidos como coeficientes técnicos da matriz de insumo-produto. Isto é, necessita-se $A_{ci}$ unidades do produto $c$ para se produzir uma unidade de $i$.
+
+Para essa tecnologia, tem-se as seguintes funções de demanda:
+
+- Demanda por bens intermediários (compostos)^[Os bens intermediários compostos são uma composição entre produtos domésticos e importados.]:
+$$X_{ci} = A_{ci} \times \text{X1TOT}_i, ~i \in \text{IND},~c \in \text{COM}$$
+
+- Demanda por valor adicionado:
+$$\text{X1PRIM}_i = A\text{1PRIM}_{i}\times \text{X1TOT}_i$$
+
+Essas equações, facilmente, podem ser reescritas em variações exatas:
+
+- Demanda por bens intermediários:
+$$\hat{X}_{ci} = \hat{A}_{ci}\times \hat{\text{X1TOT}}_i, ~i \in \text{IND},~c \in \text{COM}$$
+
+- Demanda por valor adicionado:
+$$\hat{\text{X1PRIM}}_i = \hat{\text{A1PRIM}}_i \times \hat{\text{X1TOT}}_i$$
+
+Por enquanto, não entraremos nos detalhes sobre a demanda no segundo nível (escolha entre bens domésticos e importados), tendo em vista que a forma da demanda é comum independente do usuário (indústrias, família, governo etc.).
+
+#### Famílias
+
+Para as famílias, que serão representadas como HH, assume-se um agente representativo com preferências do tipo Cobb-Douglas sobre um conjunto de produtos (compostos) e uma restrição orçamentária. Isto é:
+$$U = \prod_{c \in \text{COM}}X_{c,\text{HH}}^{\alpha_c}$$
+$$s.a. \sum_{c\in \text{COM}} P_{c,\text{HH}} X_{c,\text{HH}} = W3,$$
+em que $X_{c,\text{HH}}$ é quantidade demandada do bem composto $c$ pelas famílias (HH), $P_{c,\text{HH}}$ é o índice de preço do bem composto $c$ e $W3$ é renda nominal das famílias. Adicionalmente, $\sum_{c \in \text{COM}} \alpha_c = 1$.
+
+Para esse tipo de preferência, sabe-se que, a partir da maximização de utilidade do consumidor, que a função de demanda ótima é:
+$$X_{c,\text{HH}} = \alpha_c \frac{W3}{P_{c,\text{HH}}},~ c \in \text{COM}.$$
+
+Em variações, a demanda das famílias é escrita da seguinte forma:
+$$\hat{X}_{c,\text{HH}} =  \frac{\hat{W3}}{\hat{P}_{c,\text{HH}}}, ~ c \in \text{COM}.$$
+
+Por fim, definimos o dispêndio real das famílias ($\text{X3TOT}$) como:
+$$\hat{\text{X3TOT}} = \frac{\hat{W3}}{\hat{\text{P3TOT}}},$$
+em que $\text{P3TOT}$ é o índice de preços associado à cesta de consumo das famílias. O índice $\text{P3TOT}$ é uma média ponderada dos preços de cada bem composto $c$ para as famílias:
+$$\text{P3TOT} = \sum_{c \in \text{COM}} \text{SHARE}_{c,\text{HH}} P_{c,\text{HH}}.$$ 
+em que $\text{SHARE}_{c,\text{HH}}$ é a participação do bem $c$ no dispêndio das famílias.
+
+#### Investimento e Governo
+
+#### Demanda de segundo nível entre bens domésticos e importados
+
+No segundo nível, para os bens intermediários, é assumida uma função de agregação CES, com elasticidade de substituição $\sigma_i$, que combina os produtos domésticos e importados. Nesse caso, a demanda por cada fornecedor (doméstico ou importado) é dada pela seguinte função de demanda:
+$$X_{cis} = \left(\frac{P_{cs}}{P_{ci}}\right)^{-\sigma_i} X_{ci}, ~ i \in \text{IND},~c \in \text{COM},~s \in \text{SRC}$$
+em que $P_{cs}$ é o preço do produto $c$ fornecido pela fonte $s$. Já $P_{ci}$ é o preço médio (índice de preço) do produto $c$ para a indústria $i$. Em variação, a equação de demanda é escrita da seguinte forma:
+$$\hat{X}_{cis} = \left(\frac{\hat{P}_{cs}}{\hat{P}_{ci}}\right)^{-\sigma_i} \hat{X}_{ci}, ~~~~~~ i \in \text{IND},~c \in \text{COM},~s \in \text{SRC}$$
+
+Os preços dos produtos $c$ de origens $s$ são os seguintes:
+
+$$\hat{P}_{cdom} = \hat{\text{P1TOT}}_c \times \hat{PTX}_c,~ c \in C$$
+$$\hat{P}_{cimp} = \hat{\text{PWORLD}}_c \times \hat{\phi} \times \hat{\text{mtx}}_c, , ~~~~~~~~ c \in C,$$
+em que $\text{P1TOT}_c$ representa o custo de produção, $\text{PTX}_c$ é igual a 1 mais a taxa sobre a produção, $\text{PWORLD}_c$ é o preço internacional do produto $c$ importado, $\phi$ é taxa de câmbio e $\text{mtx}_c$ é 1 mais a tarifa de importação do produto $c$.
+
+Apesar de ser utilizada uma função de agregação do tipo CES, os autores do MINIMAL consideram uma média ponderada para construir o índice de preços $\hat{P}_{ci}$^[Foi substituído o índice de indústria por usuário, uma vez que tal fórmula serve tanto para as indústrias como os usuários finais. Na prática, IND é um subconjunto de USER.]. Assim,
+$$\hat{P}_{cu} = \sum_{s\in S} \text{SHARE}_{csu} \hat{P}_{cs}, ~ c \in \text{COM}, u \in \text{USER}$$
+
+#### Demanda por Fatores Primários
+
+Para o fator primário, a decisão de cada indústria $i$ é entre capital e trabalho. Também é utilizada uma função de agregação CES, com elasticidade substituição $\sigma^{1PRIM}_i$. Assim, pode-se definir a demanda (em variações) por trabalho e capital na indústria $i$ como:
+
+$$\hat{\text{X1LAB}}_i = \left(\frac{\hat{\text{P1LAB}}_i}{\hat{\text{P1PRIM}}_i}\right)^{-\sigma_i^{\text{1PRIM}}}\hat{\text{X1PRIM}}_i, ~ i \in \text{IND},$$
+$$\hat{\text{X1CAP}}_i = \left(\frac{\hat{\text{P1CAP}}_i}{\hat{\text{P1PRIM}}_i}\right)^{-\sigma_i^{\text{1PRIM}}}\hat{\text{X1PRIM}}_i, ~ i \in \text{IND}$$
+
+# References
