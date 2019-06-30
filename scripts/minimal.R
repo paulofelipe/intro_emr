@@ -541,4 +541,3 @@ system.time(sol_cfl <- solve_emr_block(minimal, trace = TRUE, triter = 500,
                                        tol = 1e-7))
 
 sol_cfl$variables$employ
-
