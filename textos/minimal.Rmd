@@ -1,14 +1,16 @@
 ---
 title: "Equilíbrio Geral Computável: Implementando o MINIMAL no R"
-author: "Paulo Felipe Alencar"
 date: "05/06/2019"
 classoption: twoside
+author: |
+    | Paulo Felipe Oliveira
+    | \textnormal{\sffamily Ministério da Economia}
 output: 
   pdf_document:
     number_section: true
     citation_package: natbib
     highlight: default
-    toc: true
+    keep_tex: true
     toc_depth: 4
     includes:
       in_header: header.tex
@@ -25,7 +27,11 @@ library(tidyverse)
 library(kableExtra)
 ```
 
+
+\tableofcontents\thispagestyle{empty}
+
 \clearpage
+
 \begin{abstract}
 Este documento tem o objetivo de discutir a implementação de um modelo de equilíbrio geral simples no R usando o pacote `emr`. Como exemplo, utiliza-se o MINIMAL que é um modelo desenvolvido com propósitos educacionais pelos criadores do GEMPACK. Este modelo é de um único país com múltiplos setores, múltiplas fontes de demanda e comércio internacional.
 \end{abstract}
@@ -615,7 +621,7 @@ Perceba que a variável foi definida para todos os usuários. No entanto, na Equ
 ### Exportações
 
 Para as exportações, é assumida uma função de elasticidade constante com parâmetro $\text{EXP\_ELAST}_c$ para o produto $c$. A demanda externa pelo produto doméstico depende do preço relativo entre o preço doméstico e o preço internacional daquele produto:
-$$\hat{X}_{c~dom~exp} = \hat{F4Q}_c \left(\frac{\hat{P}_{c~dom}}{\hat{\phi}~\hat{\text{PWORLD}}}\right)^{-\text{EXP ELAST}_c}, \quad c \in \text{COM},$$
+$$\hat{X}_{csu} = \hat{F4Q}_c \left(\frac{\hat{P}_{cs}}{\hat{\phi}~\hat{\text{PWORLD}_c}}\right)^{-\text{EXP ELAST}_c}, \quad c \in \text{COM},~s = \text{dom},~u=\text{Exports}$$
 em que $\hat{F4Q}_c$ é um *shift* na demanda externa.
 
 Abaixo, definimos este bloco.
@@ -681,14 +687,14 @@ params[["SIGMA1PRIM"]] <- create_param(
   desc = "Elasticidade de subsituição entre os fatores de produção"
 )
 
-FAC <- read_csv(
+FAC_DF <- read_csv(
   file = "../dados/minimal.csv",
   skip = 157,
   n_max = 14,
   col_types = 'ccd'
 )
 
-SHAREPRIM <- FAC %>% 
+SHAREPRIM <- FAC_DF %>% 
   group_by(IND) %>% 
   mutate(SHAREPRIM = Value/sum(Value)) %>% 
   select(FAC, IND, SHAREPRIM)
@@ -699,7 +705,7 @@ params[["SHAREPRIM"]] <- create_param(
   desc = "Part. de cada fator no uso do fator primário por indústria"
 )
 
-SHARELAB <- FAC %>%
+SHARELAB <- FAC_DF %>%
   filter(FAC == "Labour") %>% 
   mutate(SHARELAB = Value/sum(Value)) %>% 
   select(IND, SHARELAB)
@@ -811,5 +817,41 @@ equations[["E_l"]] <- create_equation(
 
 ### Equilíbrios nos Mercados de Bens
 
+$$\hat{X}^0_{cs} = \sum_{u \in \text{USER}} \text{SHRSALES}_{csu} \hat{X}_{csu}, \quad  c \in \text{COM}, s \in \text{SRC}$$
+em que
+$$\text{SHRSALES}_{csu} = \frac{\text{USE}_{csu}}{\sum_u\text{USE}_{csu}}, \quad  c \in \text{COM}, s \in \text{SRC}, u \in \text{USER}$$
 
+$$\hat{\text{COST}}_i = \frac{\sum_c USE_{csi} \times \hat{p}_{cs} + FAC_{labour,i} \times \hat{\text{P1LAB}}_i + FAC_{capital,i} \times \hat{\text{P1CAP}_i}}{\text{V1TOT}_i}$$
+
+```{r}
+SHRSALES <- USE %>% 
+  group_by(COM, SRC) %>% 
+  mutate(SALES = sum(Value),
+         SHRSALES = Value/SALES) %>% 
+  select(COM, SRC, USER, SHRSALES)
+
+params[["SHRSALES"]] <- create_param(
+  value = SHRSALES,
+  indexes = sets[c("COM", "SRC", "USER")],
+  desc = "Participação do usuário u nas vendas de c de origem s"
+)
+```
+
+```{r}
+variables[["x0"]] <- create_variable(
+  value = 1,
+  indexes = sets[c("COM", "SRC")],
+  type = "defined",
+  desc = "Variação na demanda total de c de origem s"
+)
+```
+
+```{r}
+equations[["E_x0"]] <- create_equation(
+  "x0[c,s] = sum(SHRSALES[c,s,] * x[c,s,])",
+  indexes = c("c in COM", "s in SRC"),
+  type = "defining",
+  desc = "Variação na demanda total de c de origem s"
+)
+```
 

@@ -40,9 +40,9 @@
 \renewcommand{\sectionmark}[1]{\markright{\tiny #1}} 
 \fancyhf{}
 \makeatletter
-\fancyhead[LE,RO]{\@title}
+\fancyhead[RE,LO]{\@title}
 \makeatother
-\fancyhead[RE,LO]{\normalsize{\thepage}}
+\fancyhead[LE,RO]{\normalsize{\thepage}}
 \rfoot{}
 \renewcommand{\headrulewidth}{0.1pt}
 
@@ -57,24 +57,26 @@
 \makeatletter
 \def\@maketitle{%
   \newpage
+  \thispagestyle{empty}
   \null
-  \vskip 2em%
+  \vskip 6em%
   \begin{center}%
   \let \footnote \thanks
   \begin{flushleft}
-    {\LARGE \bfseries \sffamily \MakeUppercase \@title \par}%
+  \vskip 10em%
+    {\Huge \bfseries \sffamily \MakeUppercase \@title \par}%
     \vskip 1.5em%
     {\large
       \lineskip .2em%
-      \begin{tabular}[t]{c}%
-        \bfseries \sffamily \@author
-      \end{tabular}\par}%
+      \bfseries \sffamily \@author
+      \par}%
   \end{flushleft}
     \vskip 1em%
     %{\large \@date}%
   \end{center}%
   \par
-  \vskip 1.5em}
+  \vskip 1.5em
+  \newpage}
 \makeatother
 
 % Muda estilo no sumário
@@ -82,3 +84,5 @@
 \renewcommand{\cftsecfont}{\sffamily\bfseries}
 \renewcommand{\cftsubsecfont}{\sffamily}
 \renewcommand{\cftsubsubsecfont}{\sffamily}
+
+
