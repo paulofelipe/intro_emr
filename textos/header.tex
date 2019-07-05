@@ -23,13 +23,13 @@
 % estilo das seções
 \usepackage{titlesec}
 \titleformat{\section}[block]
-{\normalfont\bfseries\sffamily\large}{\thesection.}{0.5em}{\MakeUppercase}{}
+{\normalfont\bfseries\sffamily}{\thesection.}{0.5em}{\MakeUppercase}{}
 
 \titleformat{\subsection}[block]
-{\normalfont\bfseries\sffamily\normalsize}{\thesubsection}{0.5em}{}
+{\normalfont\bfseries\sffamily}{\thesubsection}{0.5em}{\MakeUppercase}
 
 \titleformat{\subsubsection}[block]
-{\normalfont\bfseries\sffamily}{\thesubsubsection}{0.5em}{}
+{\normalfont\bfseries\sffamily}{\thesubsubsection}{0.5em}{\MakeUppercase}
 
 \titleformat{\subsubsubsection}[block]
 {\normalfont\bfseries\sffamily}{\thesubsubsubsection}{0.5em}{\newline}
@@ -50,7 +50,7 @@
 \renewcommand{\baselinestretch}{1.1}
 
 % altera a fonte
-\usepackage{sourcesanspro}
+\usepackage{times}
 \usepackage[T1]{fontenc}
 
 % Alterando estilo do título
@@ -85,4 +85,31 @@
 \renewcommand{\cftsubsecfont}{\sffamily}
 \renewcommand{\cftsubsubsecfont}{\sffamily}
 
+% Ícones
+\usepackage{fontawesome}
 
+% Informações do título
+\setlength{\droptitle}{-2em}
+
+  \title{Equilíbrio Geral Computável: Implementando o MINIMAL no R}
+    \pretitle{\vspace{\droptitle}\centering\huge}
+  \posttitle{\par}
+    \author{Paulo Felipe Oliveira\\
+\textnormal{\sffamily \faGithub~paulofelipe} \\
+\textnormal{\sffamily\faTwitter~paulofelipeao}}
+    \preauthor{\centering\large\emph}
+  \postauthor{\par}
+      \predate{\centering\large\emph}
+  \postdate{\par}
+    \date{05/06/2019}
+
+% tamanho da fonte dos códigos
+
+\let\oldShaded\Shaded
+\let\endoldShaded\endShaded
+\renewenvironment{Shaded}{\footnotesize\oldShaded}{\endoldShaded}
+
+%% change fontsize of output
+\let\oldverbatim\verbatim
+\let\endoldverbatim\endverbatim
+\renewenvironment{verbatim}{\footnotesize\oldverbatim}{\endoldverbatim}

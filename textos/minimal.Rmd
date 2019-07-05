@@ -1,10 +1,5 @@
 ---
-title: "Equilíbrio Geral Computável: Implementando o MINIMAL no R"
-date: "05/06/2019"
 classoption: twoside
-author: |
-    | Paulo Felipe Oliveira
-    | \textnormal{\sffamily Ministério da Economia}
 output: 
   pdf_document:
     number_section: true
@@ -16,7 +11,7 @@ output:
       in_header: header.tex
 bibliography: referencias.bib
 lang: pt-br
-fontsize: 11pt
+fontsize: 12pt
 subparagraph: yes
 ---
 
@@ -27,12 +22,14 @@ library(tidyverse)
 library(kableExtra)
 ```
 
+\maketitle
 
 \tableofcontents\thispagestyle{empty}
 
 \clearpage
 
 \begin{abstract}
+
 Este documento tem o objetivo de discutir a implementação de um modelo de equilíbrio geral simples no R usando o pacote `emr`. Como exemplo, utiliza-se o MINIMAL que é um modelo desenvolvido com propósitos educacionais pelos criadores do GEMPACK. Este modelo é de um único país com múltiplos setores, múltiplas fontes de demanda e comércio internacional.
 \end{abstract}
 
@@ -42,7 +39,7 @@ O MINIMAL^[https://www.copsmodels.com/minimal.htm] (\cite{horridge_2001}) é um 
 
 Este modelo considera 7 setores, um investidor agregado, um agente representativo das famílias, exportações agregadas e o governo. Cada produto pode ser obtido a partir de fontes domésticas ou importadas.
 
-# Estruturas de Modelo para o Pacote `emr`
+# Estruturas de Modelo para o Pacote emr
 
 A definição dos modelos segue a lógica discutida em [A simple structure for CGE models](https://jgea.org/resources/download/6539.pdf) by Xiao-guang Zhang. 
 
@@ -66,7 +63,7 @@ Os dados para o modelo são esquematizados conforme a Figura \ref{model_database
 knitr::include_graphics('minimal_database.PNG', dpi = 150)
 ```
 
-Fica claro na \ref{model_database} que existem duas fontes (*sources*) de fornecimento de produtos: doméstica e importada. Esse produtos são demandados pelos $I$ setores produtores, pelos investidores, pelas famílias, pelas exportações^[O fornecimento de produtos importados para exportação é igual a zero.] e pelo governo. As somas das linhas para produtos (*commodities*) domésticos ou importados serão denominadas de vendas (*sales*).
+Fica claro na Figura \ref{model_database} que existem duas fontes (*sources*) de fornecimento de produtos: doméstica e importada. Esse produtos são demandados pelos $I$ setores produtores, pelos investidores, pelas famílias, pelas exportações^[O fornecimento de produtos importados para exportação é igual a zero.] e pelo governo. As somas das linhas para produtos (*commodities*) domésticos ou importados serão denominadas de vendas (*sales*).
 
 Adicionalmente, os fatores trabalhos e capital são demandados pelos produtores, e há uma taxação sobre a produção. Por fim, independente do demandante, existe um imposto de importação por produto. O valor arrecadado de imposto de importação será único por produto, o que resulta em uma única taxa de importação por produto.
 
@@ -821,7 +818,7 @@ $$\hat{X}^0_{cs} = \sum_{u \in \text{USER}} \text{SHRSALES}_{csu} \hat{X}_{csu},
 em que
 $$\text{SHRSALES}_{csu} = \frac{\text{USE}_{csu}}{\sum_u\text{USE}_{csu}}, \quad  c \in \text{COM}, s \in \text{SRC}, u \in \text{USER}$$
 
-$$\hat{\text{COST}}_i = \frac{\sum_c USE_{csi} \times \hat{p}_{cs} + FAC_{labour,i} \times \hat{\text{P1LAB}}_i + FAC_{capital,i} \times \hat{\text{P1CAP}_i}}{\text{V1TOT}_i}$$
+$$\hat{\text{COST}}_i = \frac{\sum_c\sum_s USE_{csi} \times \hat{p}_{cs} + FAC_{labour,i} \times \hat{\text{P1LAB}}_i + FAC_{capital,i} \times \hat{\text{P1CAP}_i}}{\text{V1TOT}_i}$$
 
 ```{r}
 SHRSALES <- USE %>% 
@@ -829,6 +826,43 @@ SHRSALES <- USE %>%
   mutate(SALES = sum(Value),
          SHRSALES = Value/SALES) %>% 
   select(COM, SRC, USER, SHRSALES)
+
+# Salários + Remuneração do Capital
+V1PRIM <- FAC_DF %>% 
+  group_by(IND) %>% 
+  summarise(Value = sum(Value))
+
+# Custos Intermediários
+IC <- USE %>% 
+  filter(USER %in% IND) %>% 
+  group_by(IND = USER) %>% 
+  summarise(ic = sum(Value)) 
+
+# Custos totais
+V1TOT <- V1PRIM %>% 
+  rename(va = Value) %>% 
+  left_join(IC) %>% 
+  mutate(Value = va + ic) %>% 
+  select(IND, Value)
+  
+
+params[["USE"]] <- create_param(
+  value = USE,
+  indexes = sets[c("COM", "SRC", "USER")],
+  desc = "Uso do produto c da fonte s pelo usuário u"
+)
+
+params[["FAC"]] <- create_param(
+  value = FAC,
+  indexes = sets[c("FAC", "IND")],
+  desc = "Uso dos fatores primários pela indústria i"
+)
+
+params[["V1TOT"]] <- create_param(
+  value = V1TOT,
+  indexes = sets[c("IND")],
+  desc = "Custo total da indústria i"
+)
 
 params[["SHRSALES"]] <- create_param(
   value = SHRSALES,
@@ -844,6 +878,13 @@ variables[["x0"]] <- create_variable(
   type = "defined",
   desc = "Variação na demanda total de c de origem s"
 )
+
+variables[["cost"]] <- create_variable(
+  value = 1,
+  indexes = sets[c("IND")],
+  type = "defined",
+  desc = "Variação no custo marginal de produção "
+)
 ```
 
 ```{r}
@@ -853,5 +894,63 @@ equations[["E_x0"]] <- create_equation(
   type = "defining",
   desc = "Variação na demanda total de c de origem s"
 )
+
+equations[["E_cost"]] <- create_equation(
+  "cost[i] = (sum(USE[,,i] * p[,]) + FAC['Labour',i] * p1lab +
+  FAC['Capital', i] * p1cap[i])/V1TOT[i]",
+  indexes = c("i in IND"),
+  type = "defining",
+  desc = "Variação no custo marginal de produção da indústria i"
+)
 ```
+
+Agora, vamos definir as equações para duas variáveis do tipo mcc: $\hat{\text{P1TOT}}_i$ e $\hat{\text{X1TOT}}_i$:
+
+* Condição de lucro zero para a indústria $i$:
+$$\hat{\text{P1TOT}}_i = \hat{\text{COST}}_i, \quad i \in \text{IND}$$
+
+* Oferta igual a demanda para a indústria $i$^[Lembre que o conjunto de produtos é o mesmo conjunto de indústrias. Dessa forma, utilizaremos o índice $i$ para a variável $\hat{X}^0_{cs}$.]:
+$$\hat{\text{X1TOT}}_i = \hat{X}^0_{i~\text{dom}}, \quad i \in \text{IND}$$
+
+```{r}
+variables[["p1tot"]] <- create_variable(
+  value = 1,
+  indexes = sets[c("IND")],
+  type = "undefined",
+  desc = "Variação no preço da indústria i"
+)
+
+variables[["x1tot"]] <- create_variable(
+  value = 1,
+  indexes = sets[c("IND")],
+  type = "undefined",
+  desc = "Variação na produção da indústria i"
+)
+```
+
+```{r}
+equations[["E_p1tot"]] <- create_equation(
+  "p1tot[i] - cost[i]",
+  indexes = c("i in IND"),
+  type = "mcc",
+  desc = "Condição de lucro zero"
+)
+
+equations[["E_x1tot"]] <- create_equation(
+  "x1tot[i] - x0[i,'dom']",
+  indexes = c("i in IND"),
+  type = "mcc",
+  desc = "Equilíbrio no mercado i"
+)
+```
+
+### Equilíbrio nos Mercados de Fatores de Produção
+
+No mercado de fatores, temos equilíbrios de para dois mercados: trabalho e capital. No entanto, a suposição escolhida sobre a mobilidade dos fatores irá determinar quantos preços de fato existirão. Para o fator trabalho, assume-se que a mão-de-obra não é específica de cada setor, o que resulta em um único mercado de trabalho com preço P1LAB. No entanto, para utilização de capital será assumido que o fator é específico da indústria e o total usado por cada indústria (X1CAP) é determinado exogenamente. Dessa forma, cada indústria terá um preço (remuneração) de capital que faz com que a variação no uso de capital seja igual àquela determinada exogenamente.
+
+Adicionalmente, no exemplo apresentado, consideramos um fechamento de curto prazo no qual o salário real é fixo e o nível total de emprego é determinado endogenamente. Assim, no equilíbrio espera-se que
+$$\hat{L} = \sum_{i \in \text{IND}} \text{SHARE LAB}_i \times \hat{\text{X1LAB}}_i,$$
+em que $\hat{L}$ é a variação no emprego total e o lado direito da equação mensura a variação na quantidade total demandada por trabalho de cada indústria ponderado pelo participação inicial de cada indústria no uso do trabalho total ($\text{SHARE LAB}_i$).
+
+## Exemplos de Simulações
 
