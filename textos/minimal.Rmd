@@ -11,8 +11,10 @@ output:
       in_header: header.tex
 bibliography: referencias.bib
 lang: pt-br
-fontsize: 12pt
+fontsize: 11pt
 subparagraph: yes
+editor_options: 
+  chunk_output_type: inline
 ---
 
 ```{r setup, include=FALSE}
@@ -271,8 +273,8 @@ SRCSHARE <- USE %>%
   filter(USER %in% IMPUSER) %>% 
   group_by(COM, USER) %>% 
   mutate(SRCSHR = Value/sum(Value),
-         SRCSHR = ifelse(is.nan(SRCSHR), 0, SRCSHR)) %>% 
-  select(COM, SRC, USER, SRCSHR)
+         SRCSHR = ifelse(is.nan(SRCSHR), 0.5, SRCSHR)) %>% 
+  select(COM, SRC, IMPUSER = USER, SRCSHR)
 
 params[["SRCSHARE"]] <- create_param(
   value = SRCSHARE,
@@ -299,8 +301,6 @@ variables[["p_s"]] <- create_variable(
   type = "defined",
   desc = "Variação no índice de preço do bem composto c para o usuário u"
 )
-
-
 ```
 
 Por último, iremos definir as equações.
@@ -420,7 +420,7 @@ equations[["E_x_s_ind"]] <- create_equation(
 
 ```{r}
 equations[["E_x1prim"]] <- create_equation(
-  'x1prim[i] = a1prim[i] * x1tot[i]',
+  'x1prim[i] = A1PRIM[i] * x1tot[i]',
   indexes = 'i in IND',
   type = "defining",
   desc = "Uso do fator primário composto por indústria"
@@ -485,29 +485,28 @@ Isto é, a variação da renda das famílias tem que ser igual a variação do d
 Lembrando que a variável $\hat{X}_{c,\text{HH}}$ já está incluída na variável `x_s`, vamos definir as demais variáveis desse bloco:
 
 ```{r}
-variables[["w3tot"]] <- create_variable(
-  value = 1,
-  indexes = "w3tot",
-  type = "defined",
-  desc = "Variação da renda nominal das famílias"
-)
-
 variables[["p3tot"]] <- create_variable(
   value = 1,
   indexes = "p3tot",
   type = "defined",
   desc = "Variação no índice de preços das famílias"
 )
+
+variables[["w3tot"]] <- create_variable(
+  value = 1,
+  indexes = "w3tot",
+  type = "defined",
+  desc = "Variação da renda nominal das famílias"
+)
 ```
 
 Finalmente, vamos definir as equações:
 
 ```{r}
-equations[["E_x_s_hh"]] <- create_equation(
-  'x_s[c, "Households"] = w3tot/p_s[c, "Households"]',
-  indexes = c('c in COM'),
+equations[["E_p3tot"]] <- create_equation(
+  'p3tot = sum(SHARE_HH[] * p_s[,"Households"])',
   type = "defining",
-  desc = "Variação do uso do composto c pelas famílias"
+  desc = "Variação do índice de preços das famílias"
 )
 
 equations[["E_w3tot"]] <- create_equation(
@@ -516,10 +515,11 @@ equations[["E_w3tot"]] <- create_equation(
   desc = "Variação na renda (dispêndio) nominal das família"
 )
 
-equations[["E_p3tot"]] <- create_equation(
-  'p3tot = sum(SHARE_HH[] * p_s[,"Households"])',
+equations[["E_x_s_hh"]] <- create_equation(
+  'x_s[c, "Households"] = w3tot/p_s[c, "Households"]',
+  indexes = c('c in COM'),
   type = "defining",
-  desc = "Variação do índice de preços das famílias"
+  desc = "Variação do uso do composto c pelas famílias"
 )
 ```
 
@@ -656,7 +656,6 @@ equations[["E_x_exp"]] <- create_equation(
 ### Demanda por Fatores Primários
 
 Na parte da produção, vimos como cada indústria define a quantidade de fator primário que será utilizada para atingir uma determinada produção. Todavia, cada indústria pode escolher um mix diferente entre os fatores de produção capital e trabalho. Para essa alocação, também é utilizada uma função de agregação CES, com elasticidade substituição $\sigma^{1PRIM}_i$. Assim, pode-se definir a demanda (em variações) por trabalho e capital na indústria $i$ como:
-
 $$\hat{\text{X1LAB}}_i = \left(\frac{\hat{\text{P1LAB}}}{\hat{\text{P1PRIM}}_i}\right)^{-\sigma_i^{\text{1PRIM}}}\hat{\text{X1PRIM}}_i, \quad i \in \text{IND} \quad \text{e}$$
 $$\hat{\text{X1CAP}}_i = \left(\frac{\hat{\text{P1CAP}}_i}{\hat{\text{P1PRIM}}_i}\right)^{-\sigma_i^{\text{1PRIM}}}\hat{\text{X1PRIM}}_i, \quad i \in \text{IND},$$
 em que $\hat{\text{X1LAB}}_i$ é a variação da demanda por trabalho pela indústria $i$, $\hat{\text{P1LAB}}$ é o salário nominal, $\hat{\text{P1PRIM}}_i$ é a variação do índice de preços dos fatores primários para a indústria $i$, $\hat{\text{X1PRIM}}_i$ é a variação da demanda por fatores primários da indústria $i$, $\hat{\text{X1CAP}}_i$ é a variação da demanda por capital pela indústria $i$ e $\hat{\text{P1CAP}}_i$ é a remuneração do capital na indústria $i$.
@@ -701,17 +700,6 @@ params[["SHAREPRIM"]] <- create_param(
   indexes = sets[c("FAC", "IND")],
   desc = "Part. de cada fator no uso do fator primário por indústria"
 )
-
-SHARELAB <- FAC_DF %>%
-  filter(FAC == "Labour") %>% 
-  mutate(SHARELAB = Value/sum(Value)) %>% 
-  select(IND, SHARELAB)
-
-params[["SHARELAB"]] <- create_param(
-  value = SHARELAB,
-  indexes = sets["IND"],
-  desc = "Part. de cada indústria no uso do fator trabalho"
-)
 ```
 
 
@@ -720,13 +708,6 @@ params[["RW"]] <- create_param(
   value = 1,
   indexes = "rw",
   desc = 'Variação no salário real'
-)
-
-# O capital é fixo na indústria (exógeno)
-params[["X1CAP"]] <- create_param(
-  value = 1,
-  indexes = sets["IND"],
-  desc = "Variação no uso de capital por indústria"
 )
 ```
 
@@ -739,6 +720,13 @@ variables[["x1lab"]] <- create_variable(
   type = "defined",
   desc = "Variação no emprego por indústria"
 )
+
+variables[["x1cap"]] <- create_variable(
+  value = 1,
+  indexes = sets[c('IND')],
+  type = "defined",
+  desc = "Variação no uso de capital por indústria"
+)
 ```
 
 
@@ -750,25 +738,12 @@ variables[["p1lab"]] <- create_variable(
   desc = "Variação no salário nominal"
 )
 
-variables[["p1cap"]] <- create_variable(
-  value = 1,
-  indexes = sets['IND'],
-  type = "defined",
-  desc = "Variação na remuneração do capital por indústria i"
-)
 
 variables[["p1prim"]] <- create_variable(
   value = 1,
   indexes = sets['IND'],
   type = "defined",
   desc = "Variação no índice de preço do fator primário composto por indústria i"
-)
-
-variables[["l"]] <- create_variable(
-  value = 1,
-  indexes = "emprego",
-  type = "defined",
-  desc = "Variação no emprego total"
 )
 ```
 
@@ -791,10 +766,11 @@ equations[["E_p1lab"]] <- create_equation(
   desc = "Variação no salário nominal"
 )
 
-equations[["E_p1cap"]] <- create_equation(
-  'p1cap[i] = p1prim[i] * (x1cap[i]/x1prim[i])^(-1/SIGMA1PRIM[i])',
+equations[["E_x1cap"]] <- create_equation(
+  'x1cap[i] = (p1cap[i]/p1prim[i])^(-SIGMA1PRIM[i]) * x1prim[i]',
+  indexes = "i in IND",
   type = "defining",
-  desc = "Variação no salário nominal"
+  desc = "Variação na demanda por capital na indústria i"
 )
 
 equations[["E_p1prim"]] <- create_equation(
@@ -803,12 +779,6 @@ equations[["E_p1prim"]] <- create_equation(
   indexes = c('i in IND'),
   type = "defining",
   desc = "Variação no índice de preço do fator primário para indústria i"
-)
-
-equations[["E_l"]] <- create_equation(
-  'l = sum(SHARELAB * x1lab)',
-  type = "defining",
-  desc = "Variação no emprego total"
 )
 ```
 
@@ -852,10 +822,10 @@ params[["USE"]] <- create_param(
   desc = "Uso do produto c da fonte s pelo usuário u"
 )
 
-params[["FAC"]] <- create_param(
-  value = FAC,
+params[["FAC0"]] <- create_param(
+  value = FAC_DF,
   indexes = sets[c("FAC", "IND")],
-  desc = "Uso dos fatores primários pela indústria i"
+  desc = "Uso inicial dos fatores primários pela indústria i"
 )
 
 params[["V1TOT"]] <- create_param(
@@ -896,8 +866,9 @@ equations[["E_x0"]] <- create_equation(
 )
 
 equations[["E_cost"]] <- create_equation(
-  "cost[i] = (sum(USE[,,i] * p[,]) + FAC['Labour',i] * p1lab +
-  FAC['Capital', i] * p1cap[i])/V1TOT[i]",
+  "cost[i] = (sum(USE[,,i]*p) +
+  FAC0['Labour',i]*p1lab +
+  FAC0['Capital',i]*p1cap[i])/V1TOT[i]",
   indexes = c("i in IND"),
   type = "defining",
   desc = "Variação no custo marginal de produção da indústria i"
@@ -951,6 +922,87 @@ No mercado de fatores, temos equilíbrios de para dois mercados: trabalho e capi
 Adicionalmente, no exemplo apresentado, consideramos um fechamento de curto prazo no qual o salário real é fixo e o nível total de emprego é determinado endogenamente. Assim, no equilíbrio espera-se que
 $$\hat{L} = \sum_{i \in \text{IND}} \text{SHARE LAB}_i \times \hat{\text{X1LAB}}_i,$$
 em que $\hat{L}$ é a variação no emprego total e o lado direito da equação mensura a variação na quantidade total demandada por trabalho de cada indústria ponderado pelo participação inicial de cada indústria no uso do trabalho total ($\text{SHARE LAB}_i$).
+
+```{r}
+SHARELAB <- FAC_DF %>%
+  filter(FAC == "Labour") %>% 
+  mutate(SHARELAB = Value/sum(Value)) %>% 
+  select(IND, SHARELAB)
+
+params[["SHARELAB"]] <- create_param(
+  value = SHARELAB,
+  indexes = sets["IND"],
+  desc = "Part. de cada indústria no uso do fator trabalho"
+)
+```
+
+```{r}
+variables[["l"]] <- create_variable(
+  value = 1,
+  indexes = "emprego",
+  type = "defined",
+  desc = "Variação no emprego total"
+)
+```
+
+```{r}
+equations[["E_l"]] <- create_equation(
+  'l = sum(SHARELAB * x1lab)',
+  type = "defining",
+  desc = "Variação no emprego total"
+)
+```
+
+Para o mercado do fator capital, assume-se que ele é fixo na indústria. Assim, temos que a variação na demanda tem que ser igual a uma constante que tem valor inicial 1. Essa constante poderá ser usada para simular cenários de aumento do estoque de capital em alguma indústria. Considerando isso, em equilíbrio, a variação do preço do capital na indústria $i$, $\hat{\text{P1CAP}}_i$, tem que satisfazer a seguinte equação de equilíbrio:
+
+$$\hat{\text{X1CAP}}_i = \hat{\text{X1CAP}}_i^{\text{EXO}}$$
+
+```{r}
+# O capital é fixo na indústria (exógeno)
+params[["X1CAP_EXO"]] <- create_param(
+  value = 1,
+  indexes = sets["IND"],
+  desc = "Variação exógena no uso de capital por indústria"
+)
+```    
+
+```{r}
+variables[["p1cap"]] <- create_variable(
+  value = 1,
+  indexes = sets['IND'],
+  type = "undefined",
+  desc = "Variação na remuneração do capital por indústria i"
+)
+
+```
+
+```{r}
+equations[["E_p1cap"]] <- create_equation(
+  'x1cap[i] - X1CAP_EXO[i]',
+  indexes = 'i in IND',
+  type = "mcc",
+  desc = "equilíbrio no mercado de capital para indústria i"
+)
+```
+
+### Criando o objeto do modelo
+
+```{r}
+minimal <- list(
+  sets = sets,
+  params = params,
+  variables = variables,
+  equations = equations
+)
+
+minimal$params$X3TOT$value[] <- 1.1
+
+sol <- solve_emr_block(minimal)
+sol$message
+sol$variables$l
+sol$variables$p1tot
+```
+
 
 ## Exemplos de Simulações
 
