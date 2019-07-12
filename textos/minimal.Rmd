@@ -27,9 +27,6 @@ library(kableExtra)
 
 \maketitle
 
-\tableofcontents\thispagestyle{empty}
-
-\clearpage
 
 \begin{abstract}
 
@@ -45,7 +42,6 @@ Apesar da microeconomia utilizada nos modelos tradicionais de equilíbrio geral 
 O MINIMAL^[https://www.copsmodels.com/minimal.htm] (\cite{horridge_2001}) é um modelo de equilíbrio geral simplificado utilizado em cursos introdutórios do GEMPACK. A partir desse modelo, é possível deixar claro como a teoria microeconômica do consumidor e do produtor podem ser combinadas para a construção de um modelo de equilíbrio geral. 
 
 Este modelo considera 7 setores, um investidor agregado, um agente representativo das famílias, exportações agregadas e o governo. Cada produto pode ser obtido a partir de fontes domésticas ou importadas.
-
 # Estruturas de Modelo para o Pacote emr
 
 A definição dos modelos segue a lógica discutida em [A simple structure for CGE models](https://jgea.org/resources/download/6539.pdf) by Xiao-guang Zhang. 
@@ -55,8 +51,6 @@ knitr::include_graphics('structure_var_eq.png', dpi = 200)
 ```
 
 Nessa abordagem, as variáveis exógenas e endógenas serão classificadas em dois tipos: definidas ou não-definidas. As variáveis exógenas, por definição, são definidas. As endógenas pode ser dos dois tipos. As variáveis definidas são aquelas que podem ser construídas a partir dos valores das demais variáveis, das chamadas equação de definição. Já as não-definidas são aquelas que os valores serão definidos a partir de condições de equilíbrio de mercado (MCCs). 
-
-
 
 ## Exemplo: Oferta e Demanda 
 
