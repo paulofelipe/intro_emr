@@ -10,7 +10,7 @@
 
 % cores dos links e ajustamento horizontal
 \usepackage{hyperref}
-\hypersetup{pdfstartview=FitH,colorlinks=true,linkcolor=black,citecolor=blue}
+\hypersetup{pdfstartview=FitH,colorlinks=true,linkcolor=black,urlcolor=blue,citecolor=blue,bookmarksopen,bookmarksdepth=3}
 
 %cria o ambiente landscape
 \usepackage{pdflscape}
@@ -23,16 +23,19 @@
 % estilo das seções
 \usepackage{titlesec}
 \titleformat{\section}[block]
-{\normalfont\bfseries\sffamily}{\thesection.}{0.5em}{\MakeUppercase}{}
+{\normalfont\bfseries\centering}{\thesection.}{0.5em}{\MakeUppercase}{}
 
 \titleformat{\subsection}[block]
-{\normalfont\bfseries\sffamily}{\thesubsection}{0.5em}{\MakeUppercase}
+{\normalfont\bfseries}{\thesubsection}{0.5em}{}
 
 \titleformat{\subsubsection}[block]
-{\normalfont\bfseries\sffamily}{\thesubsubsection}{0.5em}{\MakeUppercase}
+{\normalfont\bfseries}{\thesubsubsection}{0.5em}{}
 
 \titleformat{\subsubsubsection}[block]
-{\normalfont\bfseries\sffamily}{\thesubsubsubsection}{0.5em}{\newline}
+{\normalfont\bfseries}{\thesubsubsubsection}{0.5em}{\newline}
+
+% Pacote para cores
+\usepackage[dvipsnames]{xcolor}
 
 % estilo do header e do footer
 \usepackage{fancyhdr}
@@ -40,18 +43,20 @@
 \renewcommand{\sectionmark}[1]{\markright{\tiny #1}} 
 \fancyhf{}
 \makeatletter
-\fancyhead[RE,LO]{\@title}
+  \fancyhead[RE]{\footnotesize{\sffamily\textcolor{darkgray}{\@title}}~~\normalsize{\thepage}}
 \makeatother
-\fancyhead[LE,RO]{\normalsize{\thepage}}
+\makeatletter
+  \fancyhead[LO]{\normalsize{\thepage}~~\footnotesize{\sffamily\textcolor{darkgray}{\@title}}}
+\makeatother
 \rfoot{}
-\renewcommand{\headrulewidth}{0.1pt}
+\renewcommand{\headrulewidth}{0pt}
 
 % espaçemento da linha
 \renewcommand{\baselinestretch}{1.1}
 
 % altera a fonte
-\usepackage{times}
 \usepackage[T1]{fontenc}
+\usepackage{fbb}
 
 % Alterando estilo do título
 \makeatletter
@@ -80,10 +85,10 @@
 \makeatother
 
 % Muda estilo no sumário
-\usepackage{tocloft}
-\renewcommand{\cftsecfont}{\sffamily\bfseries}
-\renewcommand{\cftsubsecfont}{\sffamily}
-\renewcommand{\cftsubsubsecfont}{\sffamily}
+%\usepackage{tocloft}
+%\renewcommand{\cftsecfont}{\sffamily\bfseries}
+%\renewcommand{\cftsubsecfont}{\sffamily}
+%\renewcommand{\cftsubsubsecfont}{\sffamily}
 
 % Ícones
 \usepackage{fontawesome}

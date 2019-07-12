@@ -11,8 +11,9 @@ output:
       in_header: header.tex
 bibliography: referencias.bib
 lang: pt-br
-fontsize: 11pt
+fontsize: 12pt
 subparagraph: yes
+geometry: margin=3cm
 editor_options: 
   chunk_output_type: inline
 ---
@@ -36,6 +37,10 @@ Este documento tem o objetivo de discutir a implementação de um modelo de equi
 \end{abstract}
 
 # Introdução
+
+Os modelos econômicos constituem uma ferramenta fundamental para o desenvolvimento de análises por economistas. Para análises *ex ante*, tradicionalmente, são utilizados os modelos de equilíbrio parcial ou de equilíbrio geral. Enquanto os modelos de equilíbrio parcial estão focados em um mercado específico, os modelos de equilíbrio geral focam na interação entre os diversos setores da economia. Conforme \cite{burfisher2017}, o modelo de equilíbrio geral é economicamente amplo porque considera as motivações e o comportamento de consumidores e produtores e as suas ligações.
+
+Apesar da microeconomia utilizada nos modelos tradicionais de equilíbrio geral ser relativamente simples, a implementação de um modelo completo pode ser uma tarefa não trivial. Para facilitar essa tarefa, duas linguagens específicas foram desenvolvidas: GEMPACK e GAMS. É incontestável que, muito provavelmente, especialistas em modelos de equilíbrio geral irão trabalhar com uma dessas duas ferramentas. Contudo, vale ressaltar que essas ferramentas necessitam da aquisição de licenças para que seja possível trabalhar com modelos mais complexos em termos do número de variáveis/equações.
 
 O MINIMAL^[https://www.copsmodels.com/minimal.htm] (\cite{horridge_2001}) é um modelo de equilíbrio geral simplificado utilizado em cursos introdutórios do GEMPACK. A partir desse modelo, é possível deixar claro como a teoria microeconômica do consumidor e do produtor podem ser combinadas para a construção de um modelo de equilíbrio geral. 
 
@@ -132,7 +137,7 @@ data.frame(
     align = 'lrrr',
     linesep = "",
     col.names = c("Nome", "Início", "Fim", "Nº de Linhas"),
-    caption = "Posição de Cada Header no Arquivo minimal.csv"
+    caption = "Posições dos Headers no Arquivo minimal.csv"
   ) %>% 
   kable_styling(position = "center", latex_options = "hold_position") %>% 
   column_spec(1, width = "3em") %>% 
