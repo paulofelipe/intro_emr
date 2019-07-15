@@ -42,17 +42,138 @@ Apesar da microeconomia utilizada nos modelos tradicionais de equilíbrio geral 
 O MINIMAL^[https://www.copsmodels.com/minimal.htm] (\cite{horridge_2001}) é um modelo de equilíbrio geral simplificado utilizado em cursos introdutórios do GEMPACK. A partir desse modelo, é possível deixar claro como a teoria microeconômica do consumidor e do produtor podem ser combinadas para a construção de um modelo de equilíbrio geral. 
 
 Este modelo considera 7 setores, um investidor agregado, um agente representativo das famílias, exportações agregadas e o governo. Cada produto pode ser obtido a partir de fontes domésticas ou importadas.
+
 # Estruturas de Modelo para o Pacote emr
 
-A definição dos modelos segue a lógica discutida em [A simple structure for CGE models](https://jgea.org/resources/download/6539.pdf) by Xiao-guang Zhang. 
+Para definirmos modelo com o pacote `emr` é preciso seguir uma determinada estrutura para a definição de parâmetros, variáveis e equações. No `emr`, é seguida a lógica descrita em \cite{zhang_2013}. Conforme o referido autor, a crescente complexidade dos modelos de equilíbrio geral torna-se uma barreira de entrada aos potenciais novos analistas que desejam trabalhar com esse tipo de ferramenta. \cite{zhang_2013} ressalta que o sistema de equações que deve ser resolvido é desnecessariamente grande, uma vez que várias equações e variáveis são acessórias.
 
-```{r, fig.cap="Estrutura das variáveis e das equações (Zhang, 2013)", fig.pos="H",echo=FALSE,fig.align='center'}
+Para ajudar a evitar esse problema, \cite{zhang_2013} define um sistema de estruturação de modelos de equilíbrio geral. Nesse sistema, existem apenas dois tipos de equações. O primeiro tipo define um conjunto de variáveis que descrevem a teoria associada ao modelo. Por outro lado, o segundo tipo de equações define condições de equilíbrio que devem ser satisfeitas. Adicionalmente, cada tipo de equação está associado a um tipo de variável, que chamaremos de definidas (*defined*) e não-definidas (*undefined*). O sistema é resumido na Figura \ref{system_structure}.
+
+```{r, fig.cap="Estrutura das variáveis e das equações (\\cite{zhang_2013})\\label{system_structure}", fig.pos="H",echo=FALSE,fig.align='center'}
 knitr::include_graphics('structure_var_eq.png', dpi = 200)
 ```
 
-Nessa abordagem, as variáveis exógenas e endógenas serão classificadas em dois tipos: definidas ou não-definidas. As variáveis exógenas, por definição, são definidas. As endógenas pode ser dos dois tipos. As variáveis definidas são aquelas que podem ser construídas a partir dos valores das demais variáveis, das chamadas equação de definição. Já as não-definidas são aquelas que os valores serão definidos a partir de condições de equilíbrio de mercado (MCCs). 
+Inicialmente, observa-se que, como usualmente é definido, as variáveis podem ser exógenas ou endógenas. No entanto, é apresentada uma nova classificação de variáveis: *defined* e *undefined*. As variáveis definidas são aquelas que são constantes, definidas fora do modelo, ou são definidas diretamente a partir dos valores das demais variáveis. Por outro lado, as variáveis não-definidas não têm uma equação que define o seu valor a partir das demais variáveis ou o seu valor é definido de forma implícita, o que implica que é preciso "chutar" um valor inicial pra essa variável e depois checar se o valor final da variável é igual ao chute inicial. Se não, o "chute" é atualizado. As variáveis definidas são associadas com equações definidoras (*defining*) e as não-definidas são associadas às equações de equilíbrio "mcc" (*market clearing codition*).
+
+No pacote `emr`, tem-se três funções principais que serão usadas para criar as variáveis exógenas, as variáveis endógenas e as equações:
+
+* `create_param()`: cria parâmetros que são, no sentido amplo, as variáveis exógenas e outras constantes do modelo;
+
+* `create_variable()`: cria variáveis (*defined* e *undefined*) para o modelo;
+
+* `create_equation()`: cria as equações (*defining* e *mcc*) para o modelo.
+
+Além dos parâmetros, das variáveis e das equações, o modelo também é formado por outros componentes: *sets* e equações de atualizações (*update equations*). Os *sets* armazenam os índices de variáveis e parâmetros. Por exemplo, suponha que $X_i$ seja uma variável e $i$ possa assumir os valores [AGR, IND, SER], assim esse vetor de índices será chamado de *set*. Por sua vez, as equações de atualização servem para atualizar os valores iniciais de alguns parâmetros a partir dos resultados da simulação. Por exemplo, pode-se criar um parâmetro que guarde a informação da quantidade consumida no dados iniciais, $Q0$. Após a simulação, encontramos uma variação na quantidade consumida. Essa variação pode ser utilizada para atualizar o valor de $Q0$ no novo equilíbrio.
+
+Apesar do nosso foco ser em modelos de equilíbrio geral,vale a pena introduzir o pacote com um modelo bastante simples de equilíbrio parcial.
 
 ## Exemplo: Oferta e Demanda 
+
+Aqui, vamos apresentar como um modelo pode ser construído e simulações podem ser realizadas com o pacote `emr`. Para isso, iremos trabalhar com o seguinte modelo:
+
+- Curva de demanda:
+$$q^d = k^d [p (1 + t)]^{\eta}, \quad \eta < 0$$
+- Curva de oferta:
+$$q^s = k^s p^{\epsilon}, \quad \epsilon > 0$$
+- Equilíbrio de mercado:
+$$q^d = q^s$$
+
+A Tabela \ref{oferta_demanda} detalha as variáveis e equações do modelo. Nosso modelo tem 3 variáveis ($q^d$, $q^s$ e $p$) e três equações. No entanto, perceba que as duas primeiras variáveis são definidas a partir do preço $p$. Dessa forma, o nosso "sistema" terá uma única equação de equilíbrio e que estará associado a variável $p$. Assim, $q^d$ e $q^s$ são definidas e $p$ é não definida.
+
+\begin{table}[H]
+\caption{Parâmetros e Variáveis do Modelo de Oferta e Demanda}\label{oferta_demanda}
+\begin{tabular}{cccc}
+\toprule
+      & Classe   & Tipo     & Descrição          \\
+\hline
+$q^d$ & Variável & Definida & Quantidade demanda \\
+$q^s$ & Variável & Definida & Quantidade ofertada \\
+$p$ & Variável & Não-definida & Preço \\
+$t$ & Parâmetro & - & Imposto \\
+$k^d$ & Parâmetro & - & Deslocamento da curva de demanda \\
+$k^s$ & Parâmetro & - & Deslocamento da curva de oferta \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Também é interessante introduzir a lógica de escrita de modelos em variações. Os modelos no GEMPACK são escritos em variações percentuais obtidas a partir das linearizações das equações do modelo. No `emr`, apesar de não ser obrigatório, em regra, iremos escrever o modelo em variações relativas, a chamada *exact-hat algebra*^[Na prática, reescrever as equações usando a *exact-hat algebra* é similar a *calibrated share form* que é usada em por alguns pesquisadores em CGE.] introduzida em \cite{dekle_2008}.
+
+A variação relativa de uma variável $x$ entre dois equilíbrios é denotada por $\hat{x} = x^{\prime}/x$, em que $x^\prime$ é o valor de x no novo equilíbrio. A principal vantagem de utilizar o modelo em variações é eliminar a necessidade de se obter os valores iniciais de algumas variáveis e parâmetros. Por exemplo, uma constante desconhecida $k$, em variação, é reescrita como $\hat{k} = 1$, uma vez que, a priori, o seu valor é igual nos dois equilíbrios. Se os dados iniciais representam um equilíbrio, o valor inicial da variáveis também será 1.
+
+Reescrevendo o modelo de oferta e demanda em variações, temos as seguintes equações:
+
+- Curva de demanda:
+$$\hat{q}^d = \hat{k}^d [\hat{p}\hat{\tau}]^{\eta}, \quad \eta < 0$$
+- Curva de oferta:
+$$\hat{q}^s = \hat{k}^s \hat{p}^{\epsilon}, \quad \epsilon > 0$$
+- Equilíbrio de mercado:
+$$\hat{q}^d = \hat{q}^s$$
+Nessa formulação, $\hat{\tau}$ é variação no poder do imposto, isto é:
+$$\hat{\tau} = \frac{1 + t^\prime}{1 + t}.$$
+
+Antes de começar a implementar o modelo no R, precisamos dos dados base que se referem a algum equilíbrio inicial. Usualmente, as bases de dados para modelos de equilíbrio geral consideram apenas fluxos monetários. Na prática, redefinindo-se a unidade de medida, assume-se preço inicial igual a 1. 
+
+\begin{table}[H]
+\caption{Dados Base para o Modelo de Oferta e Demanda}\label{dados_oferta_demanda}
+\begin{tabular}{lc}
+\toprule
+  Variável    & Valor\\
+\hline
+Valor inicial & 100 \\
+Tarifa inicial & 0 \\
+Elasticidade-preço da demanda ($\eta$) & -1 \\
+Elasticidade-preço da oferta ($\epsilon$) & 0.5 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Agora, vamos definir o modelo. Antes de mais nada, precisamos carregar o pacote e inicializar alguns componentes do modelos:
+
+```{r}
+library(emr)
+params <- list()
+variables <- list()
+equations <- list()
+```
+
+Com o pacote carregado, iremos definir o bloco de demanda:
+
+```{r}
+params[["K_d"]] <- create_param(
+  value = 1,
+  indexes = "k_d",
+  desc = "Shift na curva de demanda em variação"
+)
+
+params[["ETA"]] <- create_param(
+  value = -1,
+  indexes = "eta",
+  desc = "Elasticidade-preço da demanda"
+)
+
+params[["TAU"]] <- create_param(
+  value = 1,
+  indexes = "tau",
+  desc = "Variação no poder do imposto"
+)
+
+# Vamos definir uma variável e uma equação
+variables[["q_d"]] <- create_variable(
+  value = 1,
+  indexes = "q_d",
+  type = "defined",
+  desc = "Variação na quantidade demandada"
+)
+
+equations[["E_q_d"]] <- create_equation(
+  "q_d = K_d * (p * TAU)^ETA",
+  type = "defining",
+  desc = "Variação na quantidade demandada"
+)
+```
+
+
+
 
 # Implementando o MINIMAL no R
 
@@ -332,11 +453,15 @@ Além desses preços, o modelo considera índices de preços da cesta de consumo
 
 ### Produção
 
-A estrutura de produção utilizada no minimal é apresentada na Figura ... A estrutura adotada considera um primeiro nível em que o produtor demanda bens intermediários (*commodities*) e o fator primário, que é uma combinação de capital e trabalho. É assumida uma tecnologia do tipo Leontief. Dessa forma, pode-se definir o primeiro nível da produção como:
+A estrutura de produção utilizada no minimal é apresentada na Figura \ref{producao} A estrutura adotada considera um primeiro nível em que o produtor demanda bens intermediários (*commodities*) e o fator primário, que é uma combinação de capital e trabalho. É assumida uma tecnologia do tipo Leontief. Dessa forma, pode-se definir o primeiro nível da produção como:
 \begin{equation}\label{e_x1tot}
 \text{X1TOT}_i = \min\left\{\frac{X_{c \{c~\in~\text{COM}\}i}}{A_{c\{c~\in~ \text{COM}\}i}}, \frac{\text{X1PRIM}_i}{A\text{1PRIM}_{i}}\right\}, ~ i \in \text{IND},
 \end{equation}
 em que $\text{X1TOT}_i$ é a produção total da $i$-ésima indústria, $X_{ci}$ é a demanda pelo produto $c$ pela indústria $i$ e $\text{X1PRIM}_i$ é a demanda por fatores primários pela indústria $i$. $A_{ci}$ e $A\text{1PRIM}$ podem ser entendidos como coeficientes técnicos da matriz de insumo-produto. Isto é, necessita-se $A_{ci}$ unidades do produto $c$ para se produzir uma unidade de $i$.
+
+```{r, echo=FALSE, fig.cap="Estrutura da Produção\\label{producao}",fig.pos="H"}
+knitr::include_graphics('producao.pdf')
+```
 
 Para essa tecnologia, tem-se as seguintes funções de demanda:
 
