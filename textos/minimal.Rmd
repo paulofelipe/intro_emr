@@ -10,7 +10,6 @@ output:
     includes:
       in_header: header.tex
 bibliography: referencias.bib
-lang: pt-br
 fontsize: 12pt
 subparagraph: yes
 geometry: margin=3cm
@@ -30,7 +29,7 @@ library(kableExtra)
 
 \begin{abstract}
 
-Este documento tem o objetivo de discutir a implementação de um modelo de equilíbrio geral simples no R usando o pacote `emr`. Como exemplo, utiliza-se o MINIMAL que é um modelo desenvolvido com propósitos educacionais pelos criadores do GEMPACK. Este modelo é de um único país com múltiplos setores, múltiplas fontes de demanda e comércio internacional.
+\noindent Este documento tem o objetivo de discutir a implementação de um modelo de equilíbrio geral simples no R usando o pacote `emr`. Como exemplo, utiliza-se o MINIMAL que é um modelo desenvolvido com propósitos educacionais pelos criadores do GEMPACK. Este modelo é de um único país com múltiplos setores, múltiplas fontes de demanda e comércio internacional.
 \end{abstract}
 
 # Introdução
@@ -84,7 +83,7 @@ A Tabela \ref{oferta_demanda} detalha as variáveis e equações do modelo. Noss
 \caption{Parâmetros e Variáveis do Modelo de Oferta e Demanda}\label{oferta_demanda}
 \begin{tabular}{cccc}
 \toprule
-      & Classe   & Tipo     & Descrição          \\
+& Classe   & Tipo     & Descrição          \\
 \hline
 $q^d$ & Variável & Definida & Quantidade demanda \\
 $q^s$ & Variável & Definida & Quantidade ofertada \\
@@ -93,6 +92,7 @@ $t$ & Parâmetro & - & Imposto \\
 $k^d$ & Parâmetro & - & Deslocamento da curva de demanda \\
 $k^s$ & Parâmetro & - & Deslocamento da curva de oferta \\
 \bottomrule
+\multicolumn{4}{l}{Fonte: Elaboração própria.}\\
 \end{tabular}
 \end{table}
 
@@ -117,13 +117,14 @@ Antes de começar a implementar o modelo no R, precisamos dos dados base que se 
 \caption{Dados Base para o Modelo de Oferta e Demanda}\label{dados_oferta_demanda}
 \begin{tabular}{lc}
 \toprule
-  Variável    & Valor\\
+Variável    & Valor\\
 \hline
 Valor inicial & 100 \\
-Tarifa inicial & 0 \\
+Imposto inicial & 0\% \\
 Elasticidade-preço da demanda ($\eta$) & -1 \\
 Elasticidade-preço da oferta ($\epsilon$) & 0.5 \\
 \bottomrule
+Fonte: Elaboração própria. &  \\
 \end{tabular}
 \end{table}
 
@@ -146,7 +147,7 @@ params[["K_d"]] <- create_param(
 )
 
 params[["ETA"]] <- create_param(
-  value = -1,
+  value = -0.5,
   indexes = "eta",
   desc = "Elasticidade-preço da demanda"
 )
@@ -172,10 +173,145 @@ equations[["E_q_d"]] <- create_equation(
 )
 ```
 
+O segundo bloco é o da oferta:
 
+```{r}
+params[["K_s"]] <- create_param(
+  value = 1,
+  indexes = "k_s",
+  desc = "Shift (em variação) na curva de oferta"
+)
 
+params[["EPS"]] <- create_param(
+  value = 0.5,
+  indexes = "eta",
+  desc = "Elasticidade-preço da oferta"
+)
+
+variables[["q_s"]] <- create_variable(
+  value = 1,
+  indexes = "q_s",
+  type = "defined",
+  desc = "Variação na quantidade ofertada"
+)
+
+equations[["E_q_s"]] <- create_equation(
+  "q_s = K_s * p^EPS",
+  type = "defining",
+  desc = "Variação na quantidade ofertada"
+)
+```
+
+Para definição do preço de equilíbrio, utilizamos a equação de equilíbio de mercado (*mcc*). O único detalhe é que, ao invés de usarmos a igualdade, iremos reescrevê-la de tal forma que o seu valor tenda a zero quando o equilíbrio for encontrado. Isto é:
+
+$$\hat{q}^d - \hat{q}^s$$
+```{r}
+variables[["p"]] <- create_variable(
+  value = 1,
+  indexes = "p",
+  type = "undefined",
+  desc = "Variação no preço"
+)
+
+equations[["E_p"]] <- create_equation(
+  "q_d - q_s",
+  type = "mcc",
+  desc = "Equação de equilíbrio de mercado"
+)
+```
+
+Apesar de não ser estritamente necessário, criaremos um parâmetro que guardará o valor do equilíbrio inicial. Chamaremos de $V^0$. No novo equilíbrio, tem-se que
+$$V^{0\prime} = V^0 \times \hat{p} \times \hat{q}^d.$$
+Utilizaremos as equações de atualizações para atualizar esse valor:
+
+```{r}
+params[["V0"]] <- create_param(
+  value = 100,
+  indexes = "V0",
+  desc = "Valor do equilíbrio inicial"
+)
+update_equations <- list()
+update_equations[["V0"]] <- create_equation(
+  "V0 = V0 * p * q_d",
+  desc = "Atualização do valor de equilíbrio"
+)
+```
+
+Agora, vamos criar o objeto que conterá os elementos do modelo de oferta e demanda. Este objeto deve ser uma lista nomeada como os componentes^[Os possíveis componentes são: sets, params, variables, equations e update_equations].
+
+```{r}
+modelo_oferta_demanda <- list(
+  params = params,
+  variables = variables,
+  equations = equations,
+  update_equations = update_equations
+)
+```
+
+Adicionalmente, vamos testar se o modelo encontra-se em equilíbrio. Para isso, iremos utilizar a função `solve_emr()`^[A função `solve_emr()` utiliza o pacote BB desenvolvido por \cite{varadhan_gilbert_2009}. Também é fornecida a função `solve_emr_block()` que é baseada no método DF-SANE, porém em uma versão simplificada na qual o *stepsize* e a atualização das variáveis são definidos equação a equação, além de possibilitar a utilização de um stepsize fixo para cada variável não-definida.].  
+
+```{r}
+solucao <- solve_emr(modelo_oferta_demanda)
+# A função solve_emr retorna os seguintes elementos
+names(solucao)
+# o objeto sol apresenta os detalhes da solução
+solucao$sol
+```
+
+Com o modelo finalizado, vamos utilizá-lo para o que realmente interessa: realizar simulações a partir de cenários. Como exemplo, vamos supor que a tarifa inicial de 0% foi alterada para 10%. Qual é o novo equilíbrio de mercado? O que aconteceria com a quantidade e com o preço? Assim, iremos fazer $\hat{\tau} = 1.1$. O seu valor inicial é igual 1.
+
+```{r}
+modelo_oferta_demanda$params$TAU$value
+```
+Para criar o choque, precisamos alterar o paramêmetro `TAU`. Assim, basta modificar o seu valor para 1.1 (1.10/1). Note que chamamos `value[]`, a chamada com `[]` garante que o nome do elemento não seja sobrescrito. 
+
+```{r}
+modelo_oferta_demanda$params$TAU$value[] <- 1.1
+```
+
+Após a criação do choque, iremos resolver o modelo novamente. Os novos valores das variáveis estarão no elemento `variables`. O novo valor de equilíbrio, atualização de $V^0$, está no elemento `updated_data`.
+
+```{r}
+solucao_cen1 <- solve_emr(modelo_oferta_demanda)
+solucao_cen1$variables
+solucao_cen1$updated_data
+```
+
+O resultado para `q_d` foi de 0.9765, o que indica que a nova quantidade demandada é 2,4% ($(0.9765 - 1) \times 100$) menor do que no equilíbrio inicial. A Tabela \ref{tab:resultados_oferta_demanda} apresenta as variações para a quantidade, preço do produtor e preço do consumidor. Verifica-se que o custo do imposto foi suportado, quase na mesma proporção, pelos consumidores e produtores.
+
+```{r resultados_oferta_demanda, echo=FALSE,warning=FALSE}
+data.frame(
+  variavel = c("$\\hat{q}^d$", "$\\hat{p}$", "$\\hat{p}\\hat{\\tau}$"),
+  var = c(solucao_cen1$variables$q_d - 1,
+          solucao_cen1$variables$p - 1,
+          solucao_cen1$variables$p * solucao_cen1$params$TAU - 1)
+) %>%
+  mutate(var = scales::percent(var, accuracy = 0.1,
+                               big.mark = ".",
+                               decimal.mark = ",",
+                               suffix = "\\%")
+  ) %>% 
+  kable(
+    booktabs = TRUE,
+    escape = FALSE,
+    align = 'cr',
+    col.names = c("Variável", "Variação"),
+    caption = "Variações para um Choque de 10\\% no Imposto"
+  ) %>% 
+  kable_styling(latex_options = 'hold_position') %>% 
+  column_spec(2, "7em") %>% 
+  footnote(
+    general = "Fonte: Elaboração própria.",
+    general_title = "",
+    footnote_as_chunk = T
+  )
+```
+
+Assim, concluímos o nosso primeiro exemplo. A lógica aplicada, em grande parte, é a mesma que será utilizada em um modelo mais "complexo" de equilíbrio geral. Começaremos, então, pelo MINIMAL.
 
 # Implementando o MINIMAL no R
+
+Nesta seção iremos implementar o MINIMAL, que recebe esse nome em razão de ser uma versão em "miniatura" do modelo ORANI, desenvolvido por \cite{horridge_2000}. Os dados para esse modelo podem ser obtidos nas matrizes de insumo e produto disponibilizadas pelo órgãos oficiais de estatísticas nacionais. Nesse documento, iremos utilizar a base de dados para a Austrália. Primeiro trabalharemos os dados e depois iremos implementar o modelo.
 
 ## Dados para o Modelo
 
@@ -185,13 +321,13 @@ Os dados para o modelo são esquematizados conforme a Figura \ref{model_database
 knitr::include_graphics('minimal_database.PNG', dpi = 150)
 ```
 
-Fica claro na Figura \ref{model_database} que existem duas fontes (*sources*) de fornecimento de produtos: doméstica e importada. Esse produtos são demandados pelos $I$ setores produtores, pelos investidores, pelas famílias, pelas exportações^[O fornecimento de produtos importados para exportação é igual a zero.] e pelo governo. As somas das linhas para produtos (*commodities*) domésticos ou importados serão denominadas de vendas (*sales*).
+Fica claro na Figura \ref{model_database} que existem duas fontes (*sources*) de fornecimento de produtos: doméstica e importada. Esse produtos são demandados pelos $I$ setores produtores, pelos investidores, pelas famílias, pelas exportações^[O fornecimento de produtos importados para exportação é igual a zero.] e pelo governo. As somas das linhas para produtos (*commodities*) domésticos ou importados serão denominadas de vendas (*sales*). Note que a numeração das colunas serão utilizadas para identificar os usuários. Por exemplo, 1 para indústrias e 3 para as famílias.
 
-Adicionalmente, os fatores trabalhos e capital são demandados pelos produtores, e há uma taxação sobre a produção. Por fim, independente do demandante, existe um imposto de importação por produto. O valor arrecadado de imposto de importação será único por produto, o que resulta em uma única taxa de importação por produto.
+Adicionalmente, os fatores trabalhos e capital são demandados pelos produtores, e há uma taxação sobre a produção. Por fim, independente do demandante, existe um imposto de importação por produto. O valor arrecadado de imposto de importação não é separado por usuário, o que resulta em uma única taxa de importação por produto.
 
 A tabela apresentada na Figura \ref{dados_australia} detalha um conjunto de valores para a Austrália a partir de dados de 1986-1987. Os valores estão a preços dos produtores. Ou seja, inclui qualquer imposto indireto que possa ter sido aplicada àquele fluxo. Para cada setor produtor, a sua produção (soma da respectiva coluna) tem que ser igual às suas vendas (soma da respectiva linha). Por exemplo, a produção do setor Agricultura-Mineração (AgricMining) foi igual 45.730, que é o mesmo valor de suas vendas.
 
-Para as importações de produtos manufaturados (Manufacture), foi recolhido o montante de 5.787. O valor total importado desses produtos foi de 42.087 (este valor já inclui o imposto de importação), o que implica em uma taxa de importação de 15,94%^[5787/(42087 - 5787).].
+Para as importações de produtos manufaturados (*Manufacture*), foi recolhido o montante de 5.787. O valor total importado desses produtos foi de 42.087 (este valor já inclui o imposto de importação), o que implica em uma taxa de importação de 15,94%^[5787/(42087 - 5787).].
 
 ```{r, echo=FALSE, out.extra='angle=90', fig.cap="Base de Dados para Austrália (Milhões 1986-1987)\\label{dados_australia}",fig.align='center'}
 knitr::include_graphics('minimal_database_australia.PNG', auto_pdf = TRUE, dpi = 150)
@@ -199,6 +335,8 @@ knitr::include_graphics('minimal_database_australia.PNG', auto_pdf = TRUE, dpi =
 
 
 ## Implementação
+
+Nesta subseção, iremos detalhar a estrutura teórica do modelo e implementá-lo no `R` com o pacote `emr`.
 
 ### Passos Iniciais
 
@@ -220,18 +358,7 @@ minimal_headers <- read_lines('../dados/minimal.csv')
 minimal_headers[str_detect(minimal_headers, "Header")]
 ```
 
-A Tabela \ref{tab:headers_pos} detalha em quais linhas as tabelas se iniciam de fato e quantas linhas de dados existem em cada tabela. Por exemplo, a tabela `USE`, que contém os dados de uso por produto, origem e usuário, inicia-se na linha 2 e encerra na linha 156, sendo 154 linhas de dados e uma com os títulos de cada coluna. Para, ler essa tabela, podemos executar o seguinte código:
-
-```{r}
-USE <- read_csv(
-  file = '../dados/minimal.csv',
-  skip = 1,
-  n_max = 154,
-  col_types = 'cccd'
-)
-
-head(USE)
-```
+A Tabela \ref{tab:headers_pos} detalha em quais linhas as tabelas se iniciam de fato e quantas linhas de dados existem em cada tabela. Por exemplo, a tabela `USE`, que contém os dados de uso por produto, origem e usuário, inicia-se na linha 2 e encerra na linha 156, sendo 154 linhas de dados e uma com os títulos de cada coluna. 
 
 ```{r headers_pos, echo=FALSE}
 headers_names <- minimal_headers[str_detect(minimal_headers, "Header")] %>%
@@ -252,22 +379,89 @@ data.frame(
     align = 'lrrr',
     linesep = "",
     col.names = c("Nome", "Início", "Fim", "Nº de Linhas"),
-    caption = "Posições dos Headers no Arquivo minimal.csv"
+    caption = "Posições dos Headers no Arquivo minimal.csv",
+    escape = FALSE
   ) %>% 
   kable_styling(position = "center", latex_options = "hold_position") %>% 
   column_spec(1, width = "3em") %>% 
-  column_spec(2:4, width = "5em")
+  column_spec(2:4, width = "5em") %>% 
+  footnote(
+    general = "Fonte: Elaboração própria.",
+    footnote_as_chunk = T,
+    general_title = "",
+    threeparttable = T
+  )
+
 ```
 
-As demais tabelas serão importadas quando necessárias.
+O código abaixo lê as diferentes tabelas, disponibilizando os dados que serão utilizados pelo modelo.
+
+```{r}
+# dados de uso (demanda)
+use_df <- read_csv(
+  file = '../dados/minimal.csv',
+  skip = 1,
+  n_max = 154,
+  col_types = 'cccd'
+)
+
+# uso de fatores primários (capital e trabalho)
+fac_df <- read_csv(
+  file = "../dados/minimal.csv",
+  skip = 157,
+  n_max = 14,
+  col_types = 'ccd'
+)
+
+# arrecadação de imposto de importação
+tar_df <- read_csv(
+  file = "../dados/minimal.csv",
+  skip = 173,
+  n_max = 7,
+  col_types = 'cd'
+)
+
+# arrecadação de imposto sobre a produção
+ptx_df <- read_csv(
+  file = "../dados/minimal.csv",
+  skip = 182,
+  n_max = 7,
+  col_types = 'cd'
+)
+
+# elasticidades de armington
+arm_df <- read_csv(
+  file = "../dados/minimal.csv",
+  skip = 191,
+  n_max = 7,
+  col_types = 'cd'
+)
+
+# elasticidade substituição para os fatores primários
+p028_df <- read_csv(
+  file = "../dados/minimal.csv",
+  skip = 200,
+  n_max = 7,
+  col_types = 'cd'
+)
+
+# elasticidade-preço das exportações
+p018_df <- read_csv(
+  file = "../dados/minimal.csv",
+  skip = 209,
+  n_max = 7,
+  col_types = 'cd'
+)
+
+```
 
 ### Conjuntos (*Sets*)
 
 Aqui, iremos definir os conjuntos de índices que são utilizados pelas variáveis do modelo. Por exemplo, a variável de produção é definida por produto (*commodity*) pertencente ao conjunto COM, que é composto pela descrição de todos os produtos.
 
-Para implementação do modelo, precisaos de uma lista nomeada `sets`, na qual cada elemento recebe o nome do conjunto e seus possíveis valores.
+Para implementação do modelo, precisamos de uma lista nomeada `sets`, na qual cada elemento recebe o nome do conjunto e seus possíveis valores.
 
-Abaixo listamos todos os conjuntos:
+Os conjuntos do modelo são:
 
 * IND: indústrias;
 * SRC: origem (doméstica ou importada);
@@ -277,7 +471,7 @@ Abaixo listamos todos os conjuntos:
 * FINALUSER: usuários que compõem a absorção final da economia;
 * FAC: fatores primários (capital e trabalho). 
 
-Abaixo, o código para criar os conjuntos.
+Abaixo, o código para criar os conjuntos. O objeto `sets` deve ser uma lista nomeada com todos os conjuntos que o modelo utilizará.
 
 ```{r}
 IND <- c("AgricMining", "Manufacture", "Utilities", "Construction", 
@@ -330,31 +524,32 @@ Inicialmente, vamos definir os preços dos produtos $c \in \text{COM}$ fornecido
 
 \begin{equation}\label{e_p}
 P_{cs} =
-  \begin{cases}
-    \text{P1TOT}_c \times \text{PTX}_{c}       & \quad \text{se } s = \text{dom}\\
-    \text{PWORLD}_c \times \phi \times \text{mtx}_c       & \quad \text{se } s = \text{imp},
-  \end{cases}
+\begin{cases}
+\text{P1TOT}_c \times \text{PTX}_{c}       & \quad \text{se } s = \text{dom}\\
+\text{PWORLD}_c \times \phi \times \text{mtx}_c       & \quad \text{se } s = \text{imp},
+\end{cases}
 \end{equation}
 em que $P_{cs}$ é o preço do produto $c$ de origem $s$, $\text{P1TOT}_{c}$ é o custo (marginal) de produção do produto $c$, $\text{PTX}_{c}$ é o poder da imposto sobre a produção (1 + imposto sobre a produção), $\text{PWORLD}_c$ é o preço internacional do produto $c$, $\phi$ é a taxa de câmbio^[A taxa de câmbio é usada como numerário no modelo] e $\text{mtx}_c$ é o poder da tarifa sobre a importação do produto $c$.
 
-No GEMPACK, as equações são reescritas utilizando a forma de variação percentual. Aqui, vamos utilizar a chamada *exact-hat algebra*. As variáveis serão reescritas em variações. Assim, por exemplo, denotamos a variação exata de uma variável $x$ como $\hat{x} = \frac{x^\prime}{x}$, em que $x$ é o valor inicial e $x^\prime$ é o valor no novo equilíbrio.
-
-Assim, iremos reescrever \ref{e_p} como:
+Como no modelo de oferta e demanda, iremos utilizar as equações na forma de variação relativa. Assim, iremos reescrever \ref{e_p} como:
 \begin{equation}\label{e_p_hat}
 \hat{P}_{cs} =
-  \begin{cases}
-    \hat{\text{P1TOT}}_c \times \hat{\text{PTX}}_{c}       & \quad \text{se } s = \text{dom}\\
-    \hat{\text{PWORLD}}_c \times \hat{\phi} \times \hat{\text{mtx}}_c       & \quad \text{se } s = \text{imp},
-  \end{cases}
+\begin{cases}
+\hat{\text{P1TOT}}_c \times \hat{\text{PTX}}_{c}       & \quad \text{se } s = \text{dom}\\
+\hat{\text{PWORLD}}_c \times \hat{\phi} \times \hat{\text{mtx}}_c       & \quad \text{se } s = \text{imp},
+\end{cases}
 \end{equation}
 
-Adicionalmente, ao consumir o bem $c$ de duas diferentes fontes (doméstica e importada), os demandantes estão consumindo um bem composto com preço $P^s_{cu}$ definido como:
+No MINIMAL, os bens domésticos e importados são agregados em um bem composto utilizando uma função do tipo CES. O índice de preço desse bem composto é denotado por $P^s_{cu}$, sendo calculado da seguinte forma:
 
-$$\hat{P}^s_{cu} = \sum_{s\in SRC}\text{SRCSHARE}_{cus} \hat{P}_{cs}, \quad c \in \text{COM}, u \in \text{IMPUSER}$$
-em que $\text{SRCSHARE}_{cus}$ é participação da origem $s$ no dispêndio do usuário $u$ em produtos $c$.
+$$\hat{P}^s_{cu} = \left[\sum_{s\in SRC}\text{SRCSHARE}_{csu} \hat{P}_{cs}^{1 - \sigma_c}\right]^\frac{1}{1 - \sigma_c}, \quad c \in \text{COM}, u \in \text{IMPUSER}$$
+em que $\text{SRCSHARE}_{csu}$ é participação no consumo do produto $c$ da origem $s$ no dispêndio do usuário $u$. O parâmetro $\sigma_c$ é a elasticidade de substituição entre a origem doméstica e a origem importada para o produto $c$, também conhecida como elasticidade de Armington. Os valores dessas elasticidades estão no *header* ARM que importamos anteriormente.
 
+```{r}
+head(arm_df)
+```
 
-Antes de começarmos a definir os parâmetros, as variáveis e as equações, precisamos definir as listas que guardarão esses componentes do modelo:
+Com a definição desse bloco de preços, já podemos iniciar a implementação do modelo. Dessa forma, precisamos definir as listas que guardarão mais componentes do modelo:
 
 ```{r}
 params <- list()
@@ -389,7 +584,13 @@ params[["MTX"]] <- create_param(
   desc = "Variação no poder da tarifa de importação do produto c"
 )
 
-SRCSHARE <- USE %>% 
+params[["SIGMA"]] <- create_param(
+  value = arm_df,
+  indexes = sets[c("COM")],
+  desc = "Elasticidade de Armington"
+)
+
+SRCSHARE <- use_df %>% 
   filter(USER %in% IMPUSER) %>% 
   group_by(COM, USER) %>% 
   mutate(SRCSHR = Value/sum(Value),
@@ -403,9 +604,9 @@ params[["SRCSHARE"]] <- create_param(
 )
 ```
 
-Consideramos que $\hat{\text{PWORLD}}_c$ é um parâmetro, ou seja, é exógeno. Isto significa que foi assumido que os preços internacionais são dados, a demanda do país analisado não tem poder para alterar os preços internacionais. 
+Consideramos que $\hat{\text{PWORLD}}_c$ é um parâmetro, ou seja, é exógeno. Isto significa que foi assumido que os preços internacionais são dados e a demanda do país analisado não tem poder para alterar os preços internacionais. 
 
-O segundo passo para esse bloco é definir as variáveis. Iremos definir as variáveis $\hat{P}_{cs}$ e $\hat{P}^s_{cu}$. A variável $\hat{\text{P1TOT}}$ não será definida agora por dois motivos, pois não temos uma equação para definir o seu valor. Veremos adiante que o valor de $\hat{\text{P1TOT}}$ é encontrada a partir de um equação de equilíbrio de mercado (`mcc`) que define que $\hat{\text{P1TOT}}$ tem que ser igual à variação do custo de produção (lucro zero).
+O segundo passo para esse bloco é definir as variáveis. Iremos definir $\hat{P}_{cs}$ e $\hat{P}^s_{cu}$. A variável $\hat{\text{P1TOT}}$ não será definida agora, pois não temos uma equação para definir o seu valor. Veremos adiante que o valor de $\hat{\text{P1TOT}}$ é encontrada a partir de um equação de equilíbrio de mercado (`mcc`) que define que $\hat{\text{P1TOT}}$ tem que ser igual à variação do custo de produção (lucro zero).
 
 ```{r}
 variables[["p"]] <- create_variable(
@@ -423,7 +624,7 @@ variables[["p_s"]] <- create_variable(
 )
 ```
 
-Por último, iremos definir as equações.
+Por último, iremos definir as equações. Podemos, inclusive, as estruturas de controle do R (`if()`).
 
 ```{r}
 equations[["E_p"]] <- create_equation(
@@ -438,14 +639,25 @@ equations[["E_p"]] <- create_equation(
 )
 
 equations[["E_p_s"]] <- create_equation(
-  'p_s[c,u] = sum(SRCSHARE[c,,u] * p[c,])',
+  'p_s[c,u] = sum(SRCSHARE[c,,u] * p[c,]^(1-SIGMA[c])) ^ 
+    (1/(1-SIGMA[c]))',
   indexes = c('c in COM', 'u in IMPUSER'),
   type = "defining",
   desc = "Variação no índice de preço do bem composto c para o usuário u"
 )
 ```
 
-Note que para o somatório usamos a função `sum()` do R. Além disso, tem-se que SRCSHARE tem 3 dimensões e queremos somar em relação a origem, que é a segunda dimensão. Então, omitimos o índice de origem (SRC) e a soma ocorrerá nessa dimensão.
+Note que para o somatório usamos a função `sum()` do R. Além disso, tem-se que SRCSHARE tem 3 dimensões e queremos somar em relação a origem, que é a segunda dimensão. Então, omitimos o índice de origem (SRC) e a soma ocorrerá nessa dimensão. No entanto, nem sempre será possível utilizar diretmente a função `sum()` do R. Isto porque, a soma pode ocorrer em expressões mais complexas. Para esses casos, teremos que utilizar uma notação específica do pacote `emr`, na qual a expressão de soma é destacada entre duas @. Por exemplo, no caso da equação `E_p_s`, podemos reescrevê-la como:
+
+```{r}
+equations[["E_p_s"]] <- create_equation(
+  'p_s[c,u] = @sum_emr("SRCSHARE[c,s,u] * p[c,s]^(1-SIGMA[c])", "s", "SRC")@^(1/(1-SIGMA[c]))',
+  indexes = c('c in COM', 'u in IMPUSER'),
+  type = "defining",
+  desc = "Variação no índice de preço do bem composto c para o usuário u"
+)
+```
+A notação para esses casos é o seguinte `@soma_emr("expressao", "indice in set")@`. Vale ressaltar, confome será visto adiante, que é possível incluir somas dentro de somas, o que ocorre quando a expressão possui múltiplos somatórios.
 
 Além dos preços para os produtos $c$, existem os mercados de trabalho (*labor*) e de capital que possuem seus respectivos preços, $\text{P1LAB}_i$ (salário) e $\text{P1CAP}_i$ (remuneração do capital). Note que, inicialmente, esses preços estão indexados à indústria que utiliza o fator de produção. Isto ocorre quando assumimos que o fator de produção é específico da indústria. Se o fator de produção tem mobilidade entre os setores, haverá um único preço para o fator de produção e o índice $i$ será removido. Isso dependerá do fechamento que será escolhido.
 
@@ -453,20 +665,20 @@ Além desses preços, o modelo considera índices de preços da cesta de consumo
 
 ### Produção
 
-A estrutura de produção utilizada no minimal é apresentada na Figura \ref{producao} A estrutura adotada considera um primeiro nível em que o produtor demanda bens intermediários (*commodities*) e o fator primário, que é uma combinação de capital e trabalho. É assumida uma tecnologia do tipo Leontief. Dessa forma, pode-se definir o primeiro nível da produção como:
+A estrutura de produção utilizada no minimal é apresentada na Figura \ref{producao1} A estrutura adotada considera um primeiro nível em que o produtor demanda bens intermediários (*commodities*) e o fator primário, que é uma combinação de capital e trabalho. É assumida uma tecnologia do tipo Leontief. Dessa forma, pode-se definir o primeiro nível da produção como:
 \begin{equation}\label{e_x1tot}
 \text{X1TOT}_i = \min\left\{\frac{X_{c \{c~\in~\text{COM}\}i}}{A_{c\{c~\in~ \text{COM}\}i}}, \frac{\text{X1PRIM}_i}{A\text{1PRIM}_{i}}\right\}, ~ i \in \text{IND},
 \end{equation}
-em que $\text{X1TOT}_i$ é a produção total da $i$-ésima indústria, $X_{ci}$ é a demanda pelo produto $c$ pela indústria $i$ e $\text{X1PRIM}_i$ é a demanda por fatores primários pela indústria $i$. $A_{ci}$ e $A\text{1PRIM}$ podem ser entendidos como coeficientes técnicos da matriz de insumo-produto. Isto é, necessita-se $A_{ci}$ unidades do produto $c$ para se produzir uma unidade de $i$.
+em que $\text{X1TOT}_i$ é a produção total da $i$-ésima indústria, $X^s_{ci}$ é a demanda pelo produto $c$ pela indústria $i$ e $\text{X1PRIM}_i$ é a demanda por fatores primários pela indústria $i$. $A_{ci}$ e $A\text{1PRIM}$ podem ser entendidos como coeficientes técnicos da matriz de insumo-produto. Isto é, necessita-se $A_{ci}$ unidades do produto $c$ para se produzir uma unidade de $i$.
 
-```{r, echo=FALSE, fig.cap="Estrutura da Produção\\label{producao}",fig.pos="H"}
+```{r, echo=FALSE, fig.cap="Estrutura da Produção\\label{producao1}",fig.pos="H"}
 knitr::include_graphics('producao.pdf')
 ```
 
 Para essa tecnologia, tem-se as seguintes funções de demanda:
 
 - Demanda por bens intermediários (compostos)^[Os bens intermediários compostos são uma composição entre produtos domésticos e importados.]:
-$$X_{ci} = A_{ci} \times \text{X1TOT}_i, ~i \in \text{IND},~c \in \text{COM}$$
+$$X^s_{ci} = A_{ci} \times \text{X1TOT}_i, ~i \in \text{IND},~c \in \text{COM}$$
 
 - Demanda por valor adicionado:
 $$\text{X1PRIM}_i = A\text{1PRIM}_{i}\times \text{X1TOT}_i$$
@@ -474,7 +686,7 @@ $$\text{X1PRIM}_i = A\text{1PRIM}_{i}\times \text{X1TOT}_i$$
 Essas equações, facilmente, podem ser reescritas em variações exatas:
 
 - Demanda por bens intermediários:
-$$\hat{X}_{ci} = \hat{A}_{ci}\times \hat{\text{X1TOT}}_i, ~i \in \text{IND},~c \in \text{COM}$$
+$$\hat{X}^s_{ci} = \hat{A}_{ci}\times \hat{\text{X1TOT}}_i, ~i \in \text{IND},~c \in \text{COM}$$
 
 
 - Demanda por valor adicionado:
@@ -498,20 +710,20 @@ params[["A1PRIM"]] <- create_param(
 
 ```
 
-Agora, vamos definir as variáveis $\hat{X}_{ci}$ (uso do produto composto $c$ pela indústria $i$) e $\hat{\text{X1PRIM}}_i$ (uso do fator primário composto). Aqui, existe um detalhe, o uso do produto $c$ pode ser feito pelas indústrias ou pelos demais usuários de demandam importações (IMPUSER). Dessa forma, na definição da variável $\hat{X}_{ci}$, vamos utilizar o conjunto IMPUSER ao invés do conjunto IND. Deixando mais claro, iremos definir
+Agora, vamos definir as variáveis $\hat{X}_{ci}$ (uso do produto composto $c$ pela indústria $i$) e $\hat{\text{X1PRIM}}_i$ (uso do fator primário composto). Aqui, existe um detalhe, o uso do produto $c$ pode ser feito pelas indústrias ou pelos demais usuários que demandam importações (IMPUSER). Dessa forma, na definição da variável $\hat{X}_{ci}$, vamos utilizar o conjunto IMPUSER ao invés do conjunto IND. Deixando mais claro, iremos definir
 
-$$ \hat{X}_{cu},~ c \in \text{COM}, u \in \text{IMPUSER} $$
-\[ \hat{X}_{cu} =
-  \begin{cases}
-    \hat{X}_{ci}       & \quad \text{se } u \in \text{IND}\\
-    \hat{X}_{c,\text{HH}}       & \quad \text{se } u = \text{Households}\\
-    \hat{X}_{c,\text{GOV}}       & \quad \text{se } u = \text{Governement}\\
-    \hat{X}_{c,\text{INV}}       & \quad \text{se } u = \text{Investment}
-  \end{cases}
+$$ \hat{X}^s_{cu},~ c \in \text{COM}, u \in \text{IMPUSER} $$
+\[ \hat{X}^s_{cu} =
+\begin{cases}
+\hat{X}^s_{ci}       & \quad \text{se } u \in \text{IND}\\
+\hat{X}^s_{c,\text{HH}}       & \quad \text{se } u = \text{Households}\\
+\hat{X}^s_{c,\text{GOV}}       & \quad \text{se } u = \text{Governement}\\
+\hat{X}^s_{c,\text{INV}}       & \quad \text{se } u = \text{Investment}
+\end{cases}
 \]
 
 
-Ambas as variáveis são definidas, pois possuem equações que definem os seus valores.
+Ambas as variáveis são do tipo *defined*, pois possuem equações que definem os seus valores.
 
 ```{r}
 # chamamos de x de x_s (composto de várias sources s)
@@ -551,34 +763,40 @@ equations[["E_x1prim"]] <- create_equation(
 )
 ```
 
-Perceba que ainda não especificamos a variável $\hat{\text{X1TOT}}_i$. Ela será especificada em momento oportuno, mas vale antecipar que essa variável é do tipo `mcc`. Por quê? Perceba que, na Equação \ref{e_x1tot}, $\text{X1TOT}_i$ é função dos usos de bens intermediários e fatores primários. No entanto, a quantidade demandada desses bense fatores dependem de $\text{X1TOT}$. Dessa forma, $\text{X1TOT}$ não pode ser definida. Precisaremos de uma condição de equilibrio de mercado para encontrar o seu valor no novo equilíbrio. Isto será feito posteriormente.
+Perceba que ainda não especificamos a variável $\hat{\text{X1TOT}}_i$. Ela será especificada em momento oportuno, mas vale antecipar que essa variável é do tipo `mcc`. Por quê? Perceba que, na Equação \ref{e_x1tot}, $\text{X1TOT}_i$ é função dos usos de bens intermediários e fatores primários. No entanto, a quantidade demandada desses bens e fatores dependem de $\text{X1TOT}$. Dessa forma, $\text{X1TOT}$ não pode ser definida. Precisaremos de uma condição de equilibrio de mercado para encontrar o seu valor no novo equilíbrio. Isto será feito posteriormente.
 
 Adicionalmente, por enquanto, não entraremos nos detalhes sobre a demanda no segundo nível (escolha entre bens domésticos e importados), tendo em vista que a forma da demanda é comum independente do usuário (indústrias, família, governo etc.).
 
 ### Famílias
 
-Para as famílias, que serão representadas como HH, assume-se um agente representativo com preferências do tipo Cobb-Douglas sobre um conjunto de produtos (compostos) e uma restrição orçamentária. Isto é:
-$$U = \prod_{c \in \text{COM}}X_{c,\text{HH}}^{\alpha_c}$$
-$$s.a. \sum_{c\in \text{COM}} P_{c,\text{HH}} X_{c,\text{HH}} = \text{W3TOT},$$
-em que $X_{c,\text{HH}}$ é quantidade demandada do bem composto $c$ pelas famílias (HH), $P_{c,\text{HH}}$ é o índice de preço do bem composto $c$ para as famílias e $\text{W3TOT}$ é renda nominal das famílias. Adicionalmente, $\sum_{c \in \text{COM}} \alpha_c = 1$.
+Para as famílias, que serão representadas como *HH*, assume-se um agente representativo com preferências do tipo Cobb-Douglas sobre um conjunto de produtos (compostos) e uma restrição orçamentária. Isto é:
+$$U = \prod_{c \in \text{COM}}{X^s_{c,\text{HH}}}^{\alpha_c}$$
+$$s.a. \sum_{c\in \text{COM}} P_{c,\text{HH}} X^s_{c,\text{HH}} = \text{W3TOT},$$
+em que $X_{c,\text{HH}}$ é quantidade demandada do bem composto $c$ pelas famílias (*HH*), $P_{c,\text{HH}}$ é o índice de preço do bem composto $c$ para as famílias e $\text{W3TOT}$ é renda nominal das famílias. Adicionalmente, $\sum_{c \in \text{COM}} \alpha_c = 1$.
 
-Para esse tipo de preferência, sabe-se que, a partir da maximização de utilidade do consumidor, que a função de demanda ótima é:
-$$X_{c,\text{HH}} = \alpha_c \frac{\text{W3TOT}}{P_{c,\text{HH}}},~ c \in \text{COM}.$$
+Para esse tipo de preferência, sabe-se que, a partir da maximização de utilidade do consumidor, a função de demanda ótima é:
+$$X^s_{c,\text{HH}} = \alpha_c \frac{\text{W3TOT}}{P_{c,\text{HH}}},~ c \in \text{COM}.$$
 
 Em variações, a demanda das famílias é escrita da seguinte forma:
-$$\hat{X}_{c,\text{HH}} =  \frac{\hat{\text{W3TOT}}}{\hat{P}_{c,\text{HH}}}, ~ c \in \text{COM}.$$
+$$\hat{X}^s_{c,\text{HH}} =  \frac{\hat{\text{W3TOT}}}{\hat{P}_{c,\text{HH}}}, ~ c \in \text{COM}.$$
 
 Por fim, definimos o dispêndio real das famílias ($\text{X3TOT}$) como:
 $$\hat{\text{X3TOT}} = \frac{\hat{\text{W3TOT}}}{\hat{\text{P3TOT}}},$$
-em que $\text{P3TOT}$ é o índice de preços associado à cesta de consumo das famílias. O índice $\text{P3TOT}$ é uma média ponderada dos preços de cada bem composto $c$ para as famílias:
-$$\text{P3TOT} = \sum_{c \in \text{COM}} \text{SHARE}_{c,\text{HH}} P_{c,\text{HH}}.$$ 
-em que $\text{SHARE}_{c,\text{HH}}$ é a participação do bem $c$ no dispêndio das famílias.
+em que $\text{P3TOT}$ é o índice de preços associado à cesta de consumo das famílias. Para uma função do tipo cobb-douglas, 
+o índice $\text{P3TOT}$ pode ser definido como:
+
+$$ \text{P3TOT} = \prod_{c \in COM} \left(\frac{P^s_{c,HH}}{\alpha_c}\right)^{\alpha_c}.$$
+
+Em variação, esse índice é reescrito como:
+
+$$ \hat{\text{P3TOT}} = \prod_{c \in COM} \left(\hat{P}^s_{c,HH}\right)^{\alpha_c},$$
+em que $\alpha_c$ é a participação do bem $c$ no dispêndio das famílias.
 
 Especificado a estrutura das famílias no modelo, vamos definir, primeiramente, o parâmetro $\text{SHARE}_{c,\text{HH}}$.
 
 ```{r}
 # calcula os shares
-SHARE_HH <- USE %>% 
+SHARE_HH <- use_df %>% 
   filter(USER == "Households") %>% 
   group_by(COM) %>% 
   summarise(Value = sum(Value)) %>% 
@@ -628,7 +846,7 @@ Finalmente, vamos definir as equações:
 
 ```{r}
 equations[["E_p3tot"]] <- create_equation(
-  'p3tot = sum(SHARE_HH[] * p_s[,"Households"])',
+  'p3tot = prod(p_s[,"Households"]^SHARE_HH[])',
   type = "defining",
   desc = "Variação do índice de preços das famílias"
 )
@@ -650,7 +868,7 @@ equations[["E_x_s_hh"]] <- create_equation(
 
 ### Investimento e Governo
 
-No MINIMAL, não é assumida nenhuma estrutura específica para o dispêndio em investimento ou do governo. Será assumido, que essas duas fontes de demandas são exógenas. Ou seja, $\hat{X}_{c,\text{INV}} = 1$ e $\hat{X}_{c,\text{GOV}} = 1$. Portanto, iremos apenas defini-los como parâmetros, que poderão ser utilizados posteriormente como fontes de choques do modelo.
+No MINIMAL, não é assumida nenhuma estrutura específica para o dispêndio em investimento ou do governo. Será assumido, que essas duas fontes de demandas são exógenas. Ou seja, $\hat{X}^s_{c,\text{INV}} = 1$ e $\hat{X}^s_{c,\text{GOV}} = 1$. Portanto, iremos apenas defini-los como parâmetros, que poderão ser utilizados posteriormente como fontes de choques do modelo.
 
 ```{r}
 params[["X_S_INV"]] <- create_param(
@@ -685,55 +903,31 @@ equations[["E_x_s_gov"]] <- create_equation(
 )
 ```
 
-
 ### Demanda de segundo nível entre bens domésticos e importados
 
 Até o momento, apresentamos a demanda^[O componente de exportação demanda apenas o bem doméstico.] das indústrias, das famílias, do governo e do investimento pelos bens compostos. Nessa parte, vamos definir a demanda do nível inferior. Nesse nível, o consumidor escolhe alocar o seu consumo total entre o produto doméstico e o produto importado.
 
 É assumida uma função de agregação CES, com elasticidade de substituição $\sigma_i$, que combina os produtos domésticos e importados. Nesse caso, a variação na demanda por cada produto, por fonte e por usuário, $\hat{X}_{csu}$, é dada pela seguinte função de demanda:
 \begin{equation}\label{e_x}
-\hat{X}_{csu} = \left(\frac{\hat{P}_{cs}}{\hat{P}_{cu}}\right)^{-\sigma_i} \hat{X}^s_{cu}, \quad c \in \text{COM},~s \in \text{SRC},~s \in \text{IMPUSER}
+\hat{X}_{csu} = \left(\frac{\hat{P}_{cs}}{\hat{P}^s_{cu}}\right)^{-\sigma_c} \hat{X}^s_{cu}, \quad c \in \text{COM},~s \in \text{SRC},~s \in \text{IMPUSER}
 \end{equation}
-em que $\hat{P}_{cs}$ é a variação do preço do produto $c$ fornecido pela fonte $s$. Já $\hat{P}_{cu}$ é o preço médio (índice de preço) do produto $c$ para o usuário $u$. 
+em que $\hat{P}_{cs}$ é a variação do preço do produto $c$ fornecido pela fonte $s$. Já $\hat{P}^s_{cu}$ é o índice de preço do bem composto $c$ para o usuário $u$. 
 
-Nesse bloco, precisamos criar o parâmetro $\sigma_i$, que é a também chamado de elasticidade de Armington. Os valores dessas elasticidades estão no *header* `ARM`. Usamos o código abaixo para importar essa tabela.
-
-```{r}
-ARM <- read_csv(
-  file = '../dados/minimal.csv',
-  skip = 191,
-  n_max = 7,
-  col_types = 'cd'
-)
-
-ARM
-```
-
-Então, podemo criar este parâmetro.
-
-```{r}
-params[["SIGMA"]] <- create_param(
-  value = ARM,
-  indexes = sets[c("COM")],
-  desc = "Elasticidade de Armington"
-)
-```
-
-Por fim, define-se a variável $\hat{X}_{csu}$ e a equação para os usuários pertencentes ao conjunto IMPUSER.
+Abaixo, define-se a variável $\hat{X}_{csu}$ e a equação para os usuários pertencentes ao conjunto IMPUSER.
 
 ```{r}
 variables[["x"]] <- create_variable(
   value = 1,
   indexes = sets[c("COM","SRC","USER")],
   type = "defined",
-  desc = "Demand by commodity, source and user"
+  desc = "Variação na demanda por produto, fonte e usuário"
 )
 
 equations[["E_x_impuser"]] <- create_equation(
   'x[c,s,u] = x_s[c,u]*(p[c,s]/p_s[c,u])^(-SIGMA[c])',
   indexes = c('c in COM', 's in SRC', 'u in IMPUSER'),
   type = "defining",
-  desc = "Demand by commodity, source and impuser"
+  desc = "Variação na demanda por produto, fonte e usuário"
 )
 ```
 
@@ -748,15 +942,8 @@ em que $\hat{F4Q}_c$ é um *shift* na demanda externa.
 Abaixo, definimos este bloco.
 
 ```{r}
-EXP_ELAST <- read_csv(
-  file = '../dados/minimal.csv',
-  skip = 209,
-  n_max = 7,
-  col_types = 'cd'
-)
-
 params[["EXP_ELAST"]] <- create_param(
-  value = EXP_ELAST,
+  value = p018_df,
   indexes = sets["COM"],
   desc = "Elasticidade da demanda por exportações"
 )
@@ -784,37 +971,21 @@ $$\hat{\text{X1LAB}}_i = \left(\frac{\hat{\text{P1LAB}}}{\hat{\text{P1PRIM}}_i}\
 $$\hat{\text{X1CAP}}_i = \left(\frac{\hat{\text{P1CAP}}_i}{\hat{\text{P1PRIM}}_i}\right)^{-\sigma_i^{\text{1PRIM}}}\hat{\text{X1PRIM}}_i, \quad i \in \text{IND},$$
 em que $\hat{\text{X1LAB}}_i$ é a variação da demanda por trabalho pela indústria $i$, $\hat{\text{P1LAB}}$ é o salário nominal, $\hat{\text{P1PRIM}}_i$ é a variação do índice de preços dos fatores primários para a indústria $i$, $\hat{\text{X1PRIM}}_i$ é a variação da demanda por fatores primários da indústria $i$, $\hat{\text{X1CAP}}_i$ é a variação da demanda por capital pela indústria $i$ e $\hat{\text{P1CAP}}_i$ é a remuneração do capital na indústria $i$.
 
-A variável $\hat{\text{P1PRIM}}_i$ é calculada da seguinte forma:
-$$\hat{\text{P1PRIM}}_i = \text{SHAREPRIM}_{\text{lab},i}\times \hat{\text{P1LAB}} + \text{SHAREPRIM}_{\text{cap},i}\times \hat{\text{P1CAP}}_i$$
+Considerando que os fatores primários são agregados a partir de uma função do tipo CES, a variável $\hat{\text{P1PRIM}}_i$ é calculada da seguinte forma:
+$$\hat{\text{P1PRIM}}_i = \left[\text{SHAREPRIM}_{\text{lab},i}\times \hat{\text{P1LAB}}^{1 - \sigma_i^{\text{1prim}}} + \text{SHAREPRIM}_{\text{cap},i}\times \hat{\text{P1CAP}}^{1 - \sigma_i^{\text{1prim}}}_i\right]^\frac{1}{1 - \sigma_i^{\text{1prim}}}$$
 
-Note que o índice da $i$ foi retirado de $\hat{\text{P1LAB}}$ (salário), pois no fechamento adotado assume-se que o trabalho tem perfeita mobilidade entre os setores. Diferentemente, o capital será assumido fixo dentro de cada indústria. Ademais, consideraremos que no curto prazo a variação do salário real ($\hat{\text{RW}}$) é fixa (exógena) e a variação do nível de emprego ($\hat{L}$) é endógena, o que implica que $\hat{\text{P1LAB}}$ deve variar na mesma proporção de $\hat{\text{P3TOT}}$. Então, temos mais duas equações:
+Note que o índice da $i$ foi retirado de $\hat{\text{P1LAB}}$ (salário), pois no fechamento adotado assume-se que o trabalho tem perfeita mobilidade entre os setores. Diferentemente, o capital será assumido fixo dentro de cada indústria. Ademais, consideraremos que no curto prazo a variação do salário real ($\hat{\text{RW}}$) é fixa (exógena) e a variação do nível de emprego ($\hat{L}$) é endógena, o que implica que $\hat{\text{P1LAB}}$ deve variar na mesma proporção de $\hat{\text{P3TOT}}$. Então, temos a seguinte equação:
 $$\hat{\text{P1LAB}} = \hat{\text{RW}} \times \hat{\text{P3TOT}}$$
-$$\hat{L} = \sum_{i \in \text{IND}} \text{SHARE LAB}_i \times \hat{\text{X1LAB}}_i$$ 
-
 Primeiro, definimos os parâmetros desse bloco.
 
 ```{r}
-SIGMA1PRIM <- read_csv(
-  file = "../dados/minimal.csv",
-  skip = 200,
-  n_max = 7,
-  col_types = 'cd'
-)
-
 params[["SIGMA1PRIM"]] <- create_param(
-  value = SIGMA1PRIM,
+  value = p028_df,
   indexes = sets["IND"],
   desc = "Elasticidade de subsituição entre os fatores de produção"
 )
 
-FAC_DF <- read_csv(
-  file = "../dados/minimal.csv",
-  skip = 157,
-  n_max = 14,
-  col_types = 'ccd'
-)
-
-SHAREPRIM <- FAC_DF %>% 
+SHAREPRIM <- fac_df %>% 
   group_by(IND) %>% 
   mutate(SHAREPRIM = Value/sum(Value)) %>% 
   select(FAC, IND, SHAREPRIM)
@@ -871,7 +1042,7 @@ variables[["p1prim"]] <- create_variable(
 )
 ```
 
-Por fim, vamos definir as equações^[A equação para a remuneração do capital foi invertida para isolar $\hat{\text{P1CAP}}_i$.].
+Por fim, vamos definir as equações.
 
 ```{r}
 equations[["E_x1lab"]] <- create_equation(
@@ -898,8 +1069,8 @@ equations[["E_x1cap"]] <- create_equation(
 )
 
 equations[["E_p1prim"]] <- create_equation(
-  'p1prim[i] = SHAREPRIM["Labour",i] * p1lab + 
-               SHAREPRIM["Capital",i] * p1cap[i]',
+  'p1prim[i] = (SHAREPRIM["Labour", i] * p1lab^(1 - SIGMA1PRIM[i]) +
+    SHAREPRIM["Capital", i] * p1cap[i]^(1 - SIGMA1PRIM[i]))^(1/(1-SIGMA1PRIM[i]))',
   indexes = c('i in IND'),
   type = "defining",
   desc = "Variação no índice de preço do fator primário para indústria i"
@@ -908,26 +1079,39 @@ equations[["E_p1prim"]] <- create_equation(
 
 ### Equilíbrios nos Mercados de Bens
 
+Para começar a especificar as condições de equilíbrio nos mercados de bens, precisamos definir a demanda total por cada produto $c$ para cada fonte $s$, $\hat{X}^0_{cs}$:
+
 $$\hat{X}^0_{cs} = \sum_{u \in \text{USER}} \text{SHRSALES}_{csu} \hat{X}_{csu}, \quad  c \in \text{COM}, s \in \text{SRC}$$
 em que
-$$\text{SHRSALES}_{csu} = \frac{\text{USE}_{csu}}{\sum_u\text{USE}_{csu}}, \quad  c \in \text{COM}, s \in \text{SRC}, u \in \text{USER}$$
+$$\text{SHRSALES}_{csu} = \frac{\text{USE}_{csu}}{\sum_u\text{USE}_{csu}}, \quad  c \in \text{COM}, s \in \text{SRC}, u \in \text{USER}.$$
+$\text{USE}_{csu}$ é o valor da demanda de produto $c$ da fonte $s$ pelo usuário $u$.
 
-$$\hat{\text{COST}}_i = \frac{\sum_c\sum_s USE_{csi} \times \hat{p}_{cs} + FAC_{labour,i} \times \hat{\text{P1LAB}}_i + FAC_{capital,i} \times \hat{\text{P1CAP}_i}}{\text{V1TOT}_i}$$
+Adicionalmente, pode-se definir a variação no custo de produção como:
+
+$$\hat{\text{COST}}_i = \frac{\sum_c USE_{ci}^s \times \hat{P}^s_{ci} + \text{FAC}_{labour,i} \times \hat{\text{P1LAB}}_i + \text{FAC}_{capital,i} \times \hat{\text{P1CAP}_i}}{\text{V1TOT}_i},$$
+em que $USE_{ci}^s$ é o consumo total do produto $c$ pela indústria $i$, $\text{FAC}_{labour,i}$ é a remuneração total do fator trabalho utilizado na indústria $i$, $\text{FAC}_{labour,i}$ é a remuneração total do fator capital utilizado na indústria $i$ e \text{V1TOT}_i$ é o custo total de produção da indústria $i$ nos dados base.
+
+O código abaixo cria os dados e define os parâmetros `\text{SHRSALES}_{csu}`, $\text{V1TOT}_i$, $\text{FAC}_{labour,i}$ e $\text{FAC}_{capital,i}$.
 
 ```{r}
-SHRSALES <- USE %>% 
+SHRSALES <- use_df %>% 
   group_by(COM, SRC) %>% 
   mutate(SALES = sum(Value),
          SHRSALES = Value/SALES) %>% 
   select(COM, SRC, USER, SHRSALES)
 
+use_s_df <- use_df %>% 
+  group_by(COM, USER) %>% 
+  summarise(Value = sum(Value))
+
+
 # Salários + Remuneração do Capital
-V1PRIM <- FAC_DF %>% 
+V1PRIM <- fac_df %>% 
   group_by(IND) %>% 
   summarise(Value = sum(Value))
 
 # Custos Intermediários
-IC <- USE %>% 
+IC <- use_df %>% 
   filter(USER %in% IND) %>% 
   group_by(IND = USER) %>% 
   summarise(ic = sum(Value)) 
@@ -935,19 +1119,25 @@ IC <- USE %>%
 # Custos totais
 V1TOT <- V1PRIM %>% 
   rename(va = Value) %>% 
-  left_join(IC) %>% 
+  left_join(IC, by = "IND") %>% 
   mutate(Value = va + ic) %>% 
   select(IND, Value)
-  
+
 
 params[["USE"]] <- create_param(
-  value = USE,
+  value = use_df,
   indexes = sets[c("COM", "SRC", "USER")],
   desc = "Uso do produto c da fonte s pelo usuário u"
 )
 
+params[["USE_S"]] <- create_param(
+  value = use_s_df,
+  indexes = sets[c("COM", "USER")],
+  desc = "Uso do produto c da fonte s pelo usuário u"
+)
+
 params[["FAC0"]] <- create_param(
-  value = FAC_DF,
+  value = fac_df,
   indexes = sets[c("FAC", "IND")],
   desc = "Uso inicial dos fatores primários pela indústria i"
 )
@@ -965,6 +1155,8 @@ params[["SHRSALES"]] <- create_param(
 )
 ```
 
+Com os parâmetros definidos, iremos adicionar as variáveis e as equações.
+
 ```{r}
 variables[["x0"]] <- create_variable(
   value = 1,
@@ -981,6 +1173,7 @@ variables[["cost"]] <- create_variable(
 )
 ```
 
+
 ```{r}
 equations[["E_x0"]] <- create_equation(
   "x0[c,s] = sum(SHRSALES[c,s,] * x[c,s,])",
@@ -990,9 +1183,8 @@ equations[["E_x0"]] <- create_equation(
 )
 
 equations[["E_cost"]] <- create_equation(
-  "cost[i] = (sum(USE[,,i]*p) +
-  FAC0['Labour',i]*p1lab +
-  FAC0['Capital',i]*p1cap[i])/V1TOT[i]",
+  "cost[i] = (sum(USE_S[,i] * p_s[,i]) +
+                  sum(FAC0[,i]) *p1prim[i])/(V1TOT[i])",
   indexes = c("i in IND"),
   type = "defining",
   desc = "Variação no custo marginal de produção da indústria i"
@@ -1021,6 +1213,7 @@ variables[["x1tot"]] <- create_variable(
   type = "undefined",
   desc = "Variação na produção da indústria i"
 )
+
 ```
 
 ```{r}
@@ -1032,7 +1225,7 @@ equations[["E_p1tot"]] <- create_equation(
 )
 
 equations[["E_x1tot"]] <- create_equation(
-  "x1tot[i] - x0[i,'dom']",
+  "-x1tot[i] + x0[i,'dom']",
   indexes = c("i in IND"),
   type = "mcc",
   desc = "Equilíbrio no mercado i"
@@ -1048,7 +1241,7 @@ $$\hat{L} = \sum_{i \in \text{IND}} \text{SHARE LAB}_i \times \hat{\text{X1LAB}}
 em que $\hat{L}$ é a variação no emprego total e o lado direito da equação mensura a variação na quantidade total demandada por trabalho de cada indústria ponderado pelo participação inicial de cada indústria no uso do trabalho total ($\text{SHARE LAB}_i$).
 
 ```{r}
-SHARELAB <- FAC_DF %>%
+SHARELAB <- fac_df %>%
   filter(FAC == "Labour") %>% 
   mutate(SHARELAB = Value/sum(Value)) %>% 
   select(IND, SHARELAB)
@@ -1064,15 +1257,15 @@ params[["SHARELAB"]] <- create_param(
 variables[["l"]] <- create_variable(
   value = 1,
   indexes = "emprego",
-  type = "defined",
+  type = "undefined",
   desc = "Variação no emprego total"
 )
 ```
 
 ```{r}
 equations[["E_l"]] <- create_equation(
-  'l = sum(SHARELAB * x1lab)',
-  type = "defining",
+  'l - sum(SHARELAB * x1lab)',
+  type = "mcc",
   desc = "Variação no emprego total"
 )
 ```
@@ -1102,31 +1295,622 @@ variables[["p1cap"]] <- create_variable(
 
 ```{r}
 equations[["E_p1cap"]] <- create_equation(
-  'x1cap[i] - X1CAP_EXO[i]',
+  'X1CAP_EXO[i] - x1cap[i]',
   indexes = 'i in IND',
   type = "mcc",
   desc = "equilíbrio no mercado de capital para indústria i"
 )
 ```
 
-### Criando o objeto do modelo
+### Variáveis Macroeconômicas
+
+A primeira variável macroeconômica que vamos definir é o PIB (*GDP*) pela ótica da renda. Por essa ótica, o PIB é igual ao total das remunerações dos fatores mais a receita de impostos indiretos. O valor no cenário base pode ser facilmente calculado como:
+
+```{r}
+v0gdpinc <- sum(fac_df$Value) +
+  sum(tar_df$Value) +
+  sum(ptx_df$Value)
+```
+
+No novo equilíbrio, a variação nominal do PIB pode ser computada como:
+
+$$
+\begin{aligned}
+\text{V0GDPINC} \times \hat{\text{WGDPINC}} & =  \sum_{i \in \text{IND}} \text{FAC}_{labour,i} \times \hat{\text{P1LAB}} \times \hat{\text{X1LAB}}_i~ + \\
+~ & ~~~~\sum_{i \in \text{IND}} \text{FAC}_{capital,i} \times \hat{\text{P1CAP}}_i \times \hat{\text{X1CAP}}_i~ + \\
+~ & ~~~~ \sum_{c \in \text{COM}} \text{V0CIF}_c \times \hat{\text{PWORLD}}_c \times \hat{\phi} \times ((\text{TAR0}_c + 1) \times \hat{\text{MTX}}_c - 1) \\
+~ & ~~~~ \sum_{i \in \text{IND}} \text{V1TOT}_i \times \hat{\text{P1TOT}}_i \times \hat{\phi} \times ((\text{PTX0}_i + 1) \times \hat{\text{PTX}}_i - 1)
+\end{aligned}
+$$
+
+O código abaixo cria os parâmetros necessários, a variável `wgdpinc` e a equação que calcula a variação do PIB pela ótica do dispêndio.
+
+```{r}
+v0cif_tar <- use_df %>% 
+  filter(SRC == "imp") %>% 
+  group_by(COM) %>% 
+  summarise(sales = sum(Value)) %>% 
+  left_join(tar_df) %>% 
+  mutate(v0cif = sales - Value,
+         tar = Value/v0cif)
+
+v0cif <- v0cif_tar %>% 
+  select(COM, v0cif)
+
+tarifas <- v0cif_tar %>% 
+  select(COM, tar)
+
+ptx0 <- left_join(V1TOT, ptx_df, by = "IND",
+                  suffix = c("_V1TOT", "_PTX")) %>% 
+  mutate(ptx0 = Value_PTX/Value_V1TOT) %>% 
+  select(IND, ptx0)
+
+params[["V0GDPINC"]] <- create_param(
+  value = v0gdpinc,
+  indexes = "v0gdpinc",
+  desc = "Valor inicial do PIB"
+)
+
+params[["V0CIF"]] <- create_param(
+  value = v0cif,
+  indexes = sets["COM"],
+  desc = "Valor CIF inicial das importações"
+)
+
+params[["MTX0"]] <- create_param(
+  value = tarifas,
+  indexes = sets["COM"],
+  desc = "Tarifas Iniciais"
+)
+
+params[["PTX0"]] <- create_param(
+  value = ptx0,
+  indexes = sets["IND"],
+  desc = "Taxa inicial de imposto sobre a produçao"
+)
+
+variables[["wgdpinc"]] <- create_variable(
+  value = 1,
+  indexes = "wgdpinc",
+  type = "defined",
+  desc = "Variação no PIB nominal"
+)
+
+equations[["E_wgdpinc"]] <- create_equation(
+  "wgdpinc = (sum(FAC0['Labour',] * p1lab  * x1lab) +
+  sum(FAC0['Capital',] * p1cap  * x1cap) +
+  sum(V0CIF * x0[,'imp'] * PWORLD * PHI * ((1 + MTX0) * MTX - 1)) +
+  sum(V1TOT * p1tot * x1tot * ((1 + PTX0) * PTX - 1)))/V0GDPINC",
+  type = "defining",
+  desc = "Variação no PIB nominal"
+)
+
+```
+
+A segunda variável macro que iremos calcular é a variação nominal do PIB pela ótica do dispêndio, que pode ser calculada como:
+
+$$
+\begin{aligned}
+\text{V0GDPEXP} \times \hat{\text{WGDPEXP}} & = \sum_{c \in \text{COM}} \sum_{s \in \text{SRC}} \sum_{u \in \text{FINALUSER}} \text{USE}_{csu} \times \hat{P}_{cs} \times \hat{X}_{csu}~- ~\\
+~ & ~~~~ \text{V0CIF}_c \times \hat{X}^0_{c,\text{imp}} \times \hat{\text{PWORLD}}_c \times \hat{\phi}
+\end{aligned}
+$$
+
+Primeiro, iremos calcular o valor do PIB pela ótica do dispêndio nos dados base e criar o parâmetro `V0GDPEXP`.
+
+```{r}
+total_dispendio <- use_df %>% 
+  filter(USER %in% FINALUSER) %>% 
+  pull(Value) %>% 
+  sum()
+
+total_importacoes <- sum(v0cif$v0cif)
+
+v0gdpexp <- total_dispendio - total_importacoes
+
+params[["V0GDPEXP"]] <- create_param(
+  value = v0gdpexp,
+  indexes = "v0gdpexp",
+  desc = "Valor inicial do PIB pela ótica do dispêndio"
+)
+```
+
+```{r}
+variables[["wgdpexp"]] <- create_variable(
+  value = 1,
+  indexes = "wgdpexp",
+  type = "defined",
+  desc = "Variação no PIB nominal pela ótica do dispêndio"
+)
+
+# equations[["E_wgdpexp"]] <- create_equation(
+#   "wgdpexp = (sum(USE_CS) - sum(V0CIF * x0[,'imp'] * PWORLD * PHI))/V0GDPEXP",
+#   type = "defining",
+#   desc = "Variação no PIB nominal pela ótica no dispêndio"
+# )
+
+equations[["E_wgdpexp"]] <- create_equation(
+  "wgdpexp = (@sum_emr(sum_emr(sum_emr('USE[c,s,u] * p[c,s] * x[c,s,u]',
+  'u', 'FINALUSER'), 's', 'SRC'), 'c', 'COM')@
+  - sum(V0CIF * x0[,'imp'] * PWORLD * PHI))/V0GDPEXP",
+  type = "defining",
+  desc = "Variação no PIB nominal pela ótica no dispêndio"
+)
+```
+
+Por sua vez, o deflator do PIB, PGDPEXP, é calculado a partir de um índice de preços de Fisher, que é a média geométrica dos índices de Paasche e Laspeyres. Isto é necessário para poder replicar a solução do GEMPACK. Os índices são calculados da seguinte forma:
+
+* Índice de Preços de Laspeyres:
+$$
+\hat{\text{PGDPEXP}}^L = \frac{\left(\sum_{c \in \text{COM}} \sum_{s \in \text{SRC}} \sum_{u \in \text{FINALUSER}} \text{USE}_{csu} \times \hat{P}_{cs} - \sum_c \text{V0CIF}_c  \times \hat{\text{PWORLD}}_c \times \hat{\phi}\right)}{\left(\sum_{c \in \text{COM}} \sum_{s \in \text{SRC}} \sum_{u \in \text{FINALUSER}} \text{USE}_{csu} - \sum_c \text{V0CIF}_c\right)}
+$$
+
+* Índice de Preços de Paasche^[Os conjuntos de cada índice são os mesmos que foram utilizados para calcular o índice de Laspeyres.]:
+$$
+\hat{\text{PGDPEXP}}^L = \frac{\left(\sum_{c} \sum_{s} \sum_{u} \text{USE}_{csu} \times \hat{P}_{cs} \times \hat{X}_{csu} - \sum_c \text{V0CIF}_c  \times \hat{\text{PWORLD}}_c \times \hat{\phi} \times \hat{X}^0_{c,\text{imp}}\right)}{\left(\sum_{c} \sum_{s} \sum_{u} \text{USE}_{csu} \times \hat{X}_{csu} - \sum_c \text{V0CIF}_c \times \hat{X}^0_{c,\text{imp}}\right)}
+$$
+
+* Índice de Preços de Fisher:
+$$\hat{\text{PGDPEXP}} = \sqrt{\hat{\text{PGDPEXP}}^L \times \hat{\text{PGDPEXP}}^P}$$ 
+
+
+```{r}
+variables[["pgdpexp_l"]] <- create_variable(
+  value = 1,
+  indexes = "pgdpexp_l",
+  type = "defined",
+  desc = "Variação no deflator do PIB (Laspeyres)"
+)
+
+variables[["pgdpexp_p"]] <- create_variable(
+  value = 1,
+  indexes = "pgdpexp_p",
+  type = "defined",
+  desc = "Variação no deflator do PIB (Paasche)"
+)
+
+variables[["pgdpexp"]] <- create_variable(
+  value = 1,
+  indexes = "pgdpexp",
+  type = "defined",
+  desc = "Variação no deflator do PIB"
+)
+
+equations[["E_pgdpexp_l"]] <- create_equation(
+  "pgdpexp_l = (@sum_emr(sum_emr(sum_emr('USE[c,s,u] * p[c,s]', 'u', 'FINALUSER'), 's', 'SRC'),
+    'c', 'COM')@ - sum(V0CIF * PWORLD * PHI))/(sum(USE[,,FINALUSER]) - sum(V0CIF))",
+  type = "defining",
+  desc = "Variação no deflator do PIB (Laspeyres)"
+)
+
+equations[["E_pgdpexp_p"]] <- create_equation(
+  "pgdpexp_p = (@sum_emr(sum_emr(sum_emr('USE[c,s,u] * p[c,s] * x[c,s,u]',
+    'u', 'FINALUSER'), 's', 'SRC'), 'c', 'COM')@ - sum(V0CIF * PWORLD * PHI * x0[,'imp']))/
+    (sum(USE[,,FINALUSER] * x[,,FINALUSER]) - sum(V0CIF * x0[,'imp']))",
+  type = "defining",
+  desc = "Variação no deflator do PIB (Paasche)"
+)
+
+equations[["E_pgdpexp"]] <- create_equation(
+  "pgdpexp = sqrt(pgdpexp_l * pgdpexp_p)",
+  type = "defining",
+  desc = "Variação no deflator do PIB"
+)
+```
+
+Calculados a variação nominal do PIB e o deflator, pode-se calcular a variação real do PIB de maneira simples:
+
+$$\hat{\text{XGDPEXP}} = \frac{\hat{\text{WGDPEXP}}}{\hat{\text{PGDPEXP}}}$$
+
+```{r}
+variables[["xgdpexp"]] <- create_variable(
+  value = 1,
+  indexes = "xgdpexp",
+  type = "defined",
+  desc = "Variação no PIB real"
+)
+
+equations[["E_xgdpexp"]] <- create_equation(
+  "xgdpexp = wgdpexp/pgdpexp",
+  type = "defining",
+  desc = "Variação no PIB real"
+)
+```
+
+Também pode-se calcular o índice de preços do investimento, $P2TOT$, como:
+
+$$\hat{\text{P2TOT}} = \sum_{c\in COM}\sum_{s\in SRC}\frac{USE_{cs\text{INV}}}{\sum_{c\in COM}\sum_{s\in SRC}USE_{cs\text{INV}}}\hat{P}_{cs}.$$
+```{r}
+variables[["p2tot"]] <- create_variable(
+  value = 1,
+  indexes = "p2tot",
+  type = "defined",
+  desc = "Variação no índice de preço do investimento"
+)
+
+variables[["p2tot_l"]] <- create_variable(
+  value = 1,
+  indexes = "p2tot_l",
+  type = "defined",
+  desc = "Variação no índice de preço do investimento (Laspeyres)"
+)
+
+variables[["p2tot_p"]] <- create_variable(
+  value = 1,
+  indexes = "p2tot_p",
+  type = "defined",
+  desc = "Variação no índice de preço do investimento (Paasche)"
+)
+
+equations[["E_p2tot_l"]] <- create_equation(
+  "p2tot_l = sum(USE_S[,'Investment'] * p_s[,'Investment'])/sum(USE_S[,'Investment'])",
+  type = "defining",
+  desc = "Variação no índice de preço do investimento (LaspeyreS)"
+)
+
+equations[["E_p2tot_p"]] <- create_equation(
+  "p2tot_p = sum(USE_S[,'Investment'] * p_s[,'Investment'] * x_s[,'Investment'])/sum(USE_S[,'Investment'] * x_s[,'Investment'])",
+  type = "defining",
+  desc = "Variação no índice de preço do investimento (LaspeyreS)"
+)
+
+equations[["E_p2tot"]] <- create_equation(
+  "p2tot = sqrt(p2tot_l * p2tot_p)",
+  type = "defining",
+  desc = "Variação no índice de preço do investimento"
+)
+```
+
+Também pode-se computar os índices de quantidade (X4TOT) e preços (P4TOT) das exportações. Para calcular o P4TOT:
+
+$$\hat{\text{P4TOT}} = \sum_{c\in COM}\frac{USE_{c~\text{dom}~\text{EXP}}}{\sum_{c\in COM}USE_{c~\text{dom}~\text{EXP}}}\hat{P}_{c~\text{dom}}.$$
+
+```{r}
+variables[["p4tot"]] <- create_variable(
+  value = 1,
+  indexes = "p4tot",
+  type = "defined",
+  desc = "Variação no índice de preços da exportação"
+)
+
+variables[["p4tot_l"]] <- create_variable(
+  value = 1,
+  indexes = "p4tot_l",
+  type = "defined",
+  desc = "Variação no índice de preços da exportação (Laspeyres)"
+)
+
+variables[["p4tot_p"]] <- create_variable(
+  value = 1,
+  indexes = "p4tot_p",
+  type = "defined",
+  desc = "Variação no índice de preços da exportação (Paasche)"
+)
+
+equations[["E_p4tot_l"]] <- create_equation(
+  "p4tot_l = sum(USE[,'dom','Exports'] * p[,'dom'])/sum(USE[,'dom','Exports'])",
+  type = "defining",
+  desc = "Variação no índice de preços da exportação (Laspeyres)"
+)
+
+equations[["E_p4tot_p"]] <- create_equation(
+  "p4tot_p = sum(USE[,'dom','Exports'] * p[,'dom'] * x[,'dom','Exports'])/
+  sum(USE[,'dom','Exports'] * x[,'dom','Exports'])",
+  type = "defining",
+  desc = "Variação no índice de preços da exportação (Paasche)"
+)
+
+equations[["E_p4tot"]] <- create_equation(
+  "p4tot = sqrt(p4tot_l * p4tot_p)",
+  type = "defining",
+  desc = "Variação no índice de preços da exportação"
+)
+```
+
+E o X4TOT:
+
+$$\hat{\text{X4TOT}} = \sum_{c\in COM}\frac{USE_{c~\text{dom}~\text{EXP}}}{\sum_{c\in COM}USE_{c~\text{dom}~\text{EXP}}}\hat{X}_{c~\text{dom}~EXP}.$$
+
+```{r}
+variables[["x4tot"]] <- create_variable(
+  value = 1,
+  indexes = "x4tot",
+  type = "defined",
+  desc = "Variação no índice de volume da exportação"
+)
+
+equations[["E_x4tot"]] <- create_equation(
+  "x4tot = sum(USE[,'dom','Exports'] * p[,'dom'] * x[,'dom','Exports'])/
+  (sum(USE[,'dom','Exports']) * p4tot)",
+  type = "defining",
+  desc = "Variação no índice de volume de exportação"
+)
+
+```
+
+```{r}
+variables[["p0cif"]] <- create_variable(
+  value = 1,
+  indexes = "p0cif",
+  type = "defined",
+  desc = "Variação no índice de preços da importação"
+)
+
+variables[["p0cif_l"]] <- create_variable(
+  value = 1,
+  indexes = "p0cif_l",
+  type = "defined",
+  desc = "Variação no índice de preços da importação (Laspeyres)"
+)
+
+variables[["p0cif_p"]] <- create_variable(
+  value = 1,
+  indexes = "p0cif_p",
+  type = "defined",
+  desc = "Variação no índice de preços da importação (Paasche)"
+)
+
+equations[["E_p0cif_l"]] <- create_equation(
+  "p0cif_l = sum(V0CIF * PWORLD * PHI)/sum(V0CIF)",
+  type = "defining",
+  desc = "Variação no índice de preços da importação (Laspeyres)"
+)
+
+equations[["E_p0cif_p"]] <- create_equation(
+  "p0cif_p = sum(V0CIF * PWORLD * PHI * x0[,'imp'])/sum(V0CIF * x0[,'imp'])",
+  type = "defining",
+  desc = "Variação no índice de preços da importação (Paasche)"
+)
+
+equations[["E_p0cif"]] <- create_equation(
+  "p0cif = sqrt(p0cif_l * p0cif_p)",
+  type = "defining",
+  desc = "Variação no índice de preços da importação"
+)
+```
+
+
+Vamos também definir a variação no índice de volume das importações (X0CIF):
+
+$$\hat{\text{X0CIF}} = \sum_{c\in COM}\frac{\text{V0CIF}_{c}}{\sum_{c\in COM}\text{V0CIF}_{c}}\hat{X^0}_{c~\text{imp}}.$$
+
+```{r}
+variables[["x0cif"]] <- create_variable(
+  value = 1,
+  indexes = "x0cif",
+  type = "defined",
+  desc = "Variação no índice de volume da importação"
+)
+
+equations[["E_x0cif"]] <- create_equation(
+  "x0cif = sum(V0CIF * PWORLD * PHI * x0[,'imp'])/(sum(V0CIF) * p0cif)",
+  type = "defining",
+  desc = "Variação no índice de preços da importação"
+)
+```
+
+Para finalizar, calculamos a razão entre a balança comercial e o PIB.
+
+```{r}
+variables[["delB"]] <- create_variable(
+  value = 1,
+  indexes = "delB",
+  type = "defined",
+  desc = "Balança comercial como razão do PIB"
+)
+
+equations[["E_delB"]] <- create_equation(
+  "delB = sum(sum(USE[,'dom','Exports']) * p4tot * x4tot - 
+    sum(V0CIF[]) * p0cif * x0cif)/(V0GDPEXP * wgdpexp) - 
+    sum(USE[,'dom','Exports'] - V0CIF)/(V0GDPEXP) + 1",
+  type = "defining",
+  desc = "Variação no índice de preços da importação"
+)
+```
+
+
+
+
+## Atualização dos Dados
+
+Após a nova solução ser encontrada é possível atualizar os dados iniciais utilizando as variações obtidas. Por exemplo, temos o parâmetro USE que traz os valores iniciais do uso do produto $c$ originário da fonte $s$ pelo usuário $u$. É possível que se deseje saber quais seriam esses novos valores no contrafactual. Para isso, podemos criar um conjunto de equações de atualizações que servirão para computar esses novos valores. 
+
+Para atualizar os valores USE, precisamos das variações de preços e quantidades. A equação de atualização seria a seguinte:
+$$ \text{USE}^\prime_{csu} = \text{USE}_{csu} \times \hat{P}_{cs}\times \hat{X}_{csu},$$
+em que $\text{USE}^\prime_{csu}$ representa os novos valores de $\text{USE}_{csu}$.
+
+Para definir essas equações de atualizações, precisamos primeiro criar uma lista chamada `update_equations`. Cada equação de atualização, ficará responsável por atualizar os valores de uma parâmetro. Para isso, precisamos que **a equação de atualização possua o mesmo nome do objeto que queremos atualizar**.
+
+```{r}
+update_equations <- list()
+
+update_equations[["USE"]] <- create_equation(
+  "USE[c,s,u] = USE[c,s,u] * p[c,s] * x[c,s,u]",
+  indexes = c("c in COM", "s in SRC", "u in USER"),
+  desc = "Atualização dos dadoss de uso dos produto"
+)
+```
+
+Para deixar mais uma exemplo, vamos atualizar os valores das remunerações (uso) de fatores primários. Esse parâmetro pode ser atualizado utilizando a seguinte equação:
+
+$$
+\text{FAC0}^\prime_{fi} =
+\begin{cases}
+\text{FAC0}_{fi} \times \hat{\text{p1lab}} \times \hat{\text{x1lab}}_i       & \quad \text{se } f = \text{labour}\\
+\text{FAC0}_{fi} \times \hat{\text{p1cap}}_i \times \hat{\text{x1cap}}_i       & \quad \text{se } f = \text{capital},
+\end{cases}
+$$
+
+E definimos essa atualização da seguinte forma:
+```{r}
+update_equations[["FAC0"]] <- create_equation(
+  "if(f == 'Labour'){
+    FAC0[f,i] = FAC0[f,i] * p1lab * x1lab[i]
+  } else{
+    FAC0[f,i] = FAC0[f,i] * p1cap[i] * x1cap[i]
+  }",
+  indexes = c("f in FAC", "i in IND"),
+  desc = "Atualização dos dados de uso de fatores primários"
+)
+```
+
+## Exemplos de Simulações
+
+Com o modelo definido, podemos, finalmente, partir para as simulações. O primeiro passo é criar um objeto que guardar os componentes do modelos (conjuntos, parâmetros, variáveis, equações etc.). Para isso, iremos criar uma **lista** que armazenará esses componentes:
+
 
 ```{r}
 minimal <- list(
   sets = sets,
   params = params,
   variables = variables,
-  equations = equations
+  equations = equations,
+  update_equations = update_equations
+)
+```
+
+Com o objeto criado, vamos checar se os dados iniciais já representam uma solução do modelo, ou seja, um equilíbrio. Para resolver o modelo podemos utilizar a função `solve_emr()` ou `solve_emr_block()`. A diferença básica entre essas duas funções é que a função `solve_emr_block()` utiliza um método mais flexível para resolver o modelo. Contudo, em alguns casos será necessário que o usuário forneça o *step size*^[De forma resumida, a atualização de variável $x$ é feita como $$x^\prime = x + \alpha \times d,$$ em que $d = -F(x)$ e $F(x)$ é o resíduo da equação `mcc` associada à variável $x$. Nesse caso, $\alpha$ seria o *step size*.] para atualização dos valores das variáveis dos tipos `undefined`.
+
+```{r}
+sol0 <- solve_emr(
+  model = minimal
 )
 
-minimal$params$X3TOT$value[] <- 1.1
-
-sol <- solve_emr_block(minimal)
-sol$message
-sol$variables$l
-sol$variables$p1tot
+sol0$sol$message
 ```
 
 
-## Exemplos de Simulações
+### Experimento 1: Aumento de demanda das famílias
 
+Nosso modelo está corretamente especificado. Agora, vamos ao experimento. Suponha um choque de 10% na demanda das famílias (X3TOT)^[Lembre-se que no fechamento de curto prazo adotado esse componente da demanda é exógeno]. Como estamos trabalhando com a variação exata, significa definir $\hat{\text{X3TOT}} = 1,1$. Dessa forma, vamos alterar esse parâmetro do modelo:
+
+```{r}
+# o colchete [] serve para que o vetor nomeado não seja sobrescrito
+# por um vetor não nomeado.
+minimal$params$X3TOT$value[] <- 1.1
+```
+
+Para encontrar a nova solução, utilizamos novamente a função `solve_emr_block()` com o objeto `minimal` alterado. Nesse caso, no modelo não está mais equilíbrio (ver o resíduo para `x1tot` na iteração inicial):
+
+```{r}
+sol1 <- solve_emr(minimal)
+
+sol1$sol$message
+```
+
+Com a nova solução, podemos verificar as variações percentuais resultantes da alteração do parâmetro X3TOT. **Apesar de não estar diretamente relacionado com o pacote `emr`, fica explicitado abaixo o código para a criação da tabela de resultados:**
+
+```{r, echo=FALSE}
+map_df(c("l", "wgdpexp", "wgdpinc", "pgdpexp", "xgdpexp", "delB", "p3tot",
+         "w3tot", "p1lab", "p2tot", "x4tot", "p4tot", "x0cif"), ~{
+           data.frame(
+             variavel = sol1$variables_descriptions %>% 
+               filter(variable == .x) %>% 
+               pull(description) %>% 
+               paste0(" (", .x,")"), 
+             value = round((sol1$variables[[.x]] - 1) * 100, 2),
+             stringsAsFactors = FALSE
+           )
+         }) %>% 
+  kable(
+    booktabs = TRUE,
+    col.names = c("Variável", "Variação %"),
+    caption = "Resultados da Simulação - Experimento 1",
+    linesep = "",
+    format.args = list(big.mark = ".", decimal.mark = ",")
+  ) %>% 
+  kable_styling(latex_options = "hold_position")
+```
+
+Verifica-se um impacto de +0,86% no PIB real e +1,14% no emprego. O aumento da demanda interna é atendido via redução das exportações, que tiveram redução no volume (-20,46%) e aumento nos preços (+4,90%), e aumento das importações (+13,08%).
+
+```{r}
+map_df(runif(10, 0.5,  7), ~{
+  
+  minimal <- list(
+    sets = sets,
+    params = params,
+    variables = variables,
+    equations = equations,
+    update_equations = update_equations
+  )
+  
+  minimal$params$SIGMA$value[] <- .x
+  
+  minimal$params$X3TOT$value[] <- 1.1
+  
+  sol1 <- solve_emr(minimal)
+  
+  tibble(
+    sigma = .x,
+    xgdpexp = sol1$variables$xgdpexp - 1
+  )
+    
+}) %>% 
+  ggplot(aes(x = sigma, y = xgdpexp)) +
+  geom_line() +
+  scale_y_continuous(labels = scales::percent)
+
+```
+
+
+### Experimento 2: Aumento do salário real
+
+No fechamento adotado, o salário real é definido exogenamente e o nível de emprego torna-se endógeno. Assim, nesse segundo experimento, verificamos quais seriam os impactos da elevação em 1% do salário real. 
+
+Em primeiro lugar, precisamos definir novamente o objeto `minimal`, uma vez que ele foi modificado no experimento anterior.
+
+```{r}
+minimal <- list(
+  sets = sets,
+  params = params,
+  variables = variables,
+  equations = equations,
+  update_equations = update_equations
+)
+```
+
+O segundo passo é definir o choque:
+
+```{r}
+minimal$params$RW$value[] <- 1.01
+```
+
+Finalmente, iremos resolver o modelo novamente:
+
+```{r}
+sol1 <- solve_emr(minimal)
+
+sol1$sol$message
+```
+
+
+```{r, echo=FALSE}
+map_df(c("l", "wgdpexp", "wgdpinc", "pgdpexp", "xgdpexp", "delB", "p3tot",
+         "w3tot", "p1lab", "p2tot", "x4tot", "p4tot", "x0cif"), ~{
+           data.frame(
+             variavel = sol1$variables_descriptions %>% 
+               filter(variable == .x) %>% 
+               pull(description) %>% 
+               paste0(" (", .x,")"), 
+             value = round((sol1$variables[[.x]] - 1) * 100, 2),
+             stringsAsFactors = FALSE
+           )
+         }) %>% 
+  kable(
+    booktabs = TRUE,
+    col.names = c("Variável", "Variação %"),
+    caption = "Resultados da Simulação - Experimento 2",
+    linesep = "",
+    format.args = list(big.mark = ".", decimal.mark = ",")
+  ) %>% 
+  kable_styling(latex_options = "hold_position")
+```
+
+Para esse experimento, como esperado, ocorre uma redução no nível de emprego (-0,89%). Além disso, encontra-se um efeito negativo no PIB real (-0,61%), queda das exportações (-3,09%) e aumento das importações (+0,88%).
+
+# Considerações Finais
+
+O objetivo desse documento foi apresentar a estrutura de para construção de modelos de equilíbrio parcial e geral no R, além de exemplificar com as simulações podem ser realizadas. Esses modelos podem ser bastante úteis para avaliações *ex ante* de políticas. Dessa forma, possibilitar a sua implementação em ambientes *open source* podem ajudar no ensino e disseminação desses modelos.
+
+\newpage
