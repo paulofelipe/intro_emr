@@ -29,7 +29,7 @@ library(kableExtra)
 
 \begin{abstract}
 
-\noindent Este documento tem o objetivo de discutir a implementação de um modelo de equilíbrio geral simples no R usando o pacote `emr`. Como exemplo, utiliza-se o MINIMAL que é um modelo desenvolvido com propósitos educacionais pelos criadores do GEMPACK. Este modelo é de um único país com múltiplos setores, múltiplas fontes de demanda e comércio internacional.
+\noindent Este documento tem o objetivo de discutir a implementação de um modelo de equilíbrio geral simples no R usando o pacote `emr`. Como exemplo, utiliza-se o MINIMAL que é um modelo desenvolvido com propósitos educacionais pelos criadores do GEMPACK. Este modelo é de um único país com múltiplos setores, múltiplas fontes de demanda e comércio internacional. A definição dos modelos segue a abordagem descrita em \cite{zhang_2013}. Os resultados obtidos com o `emr` são consideravelmente próximos daqueles obtidos com o GEMPACK, ainda que aqui o modelo seja definido em variações relativas, diferentemente do GEMPACK que utiliza linearizações e métodos auxiliares para obter soluções mais exatas.
 \end{abstract}
 
 # Introdução
@@ -1549,7 +1549,8 @@ equations[["E_p2tot_l"]] <- create_equation(
 )
 
 equations[["E_p2tot_p"]] <- create_equation(
-  "p2tot_p = sum(USE_S[,'Investment'] * p_s[,'Investment'] * x_s[,'Investment'])/sum(USE_S[,'Investment'] * x_s[,'Investment'])",
+  "p2tot_p = sum(USE_S[,'Investment'] * p_s[,'Investment'] * x_s[,'Investment'])/
+  sum(USE_S[,'Investment'] * x_s[,'Investment'])",
   type = "defining",
   desc = "Variação no índice de preço do investimento (LaspeyreS)"
 )
@@ -1702,7 +1703,7 @@ variables[["delB"]] <- create_variable(
 equations[["E_delB"]] <- create_equation(
   "delB = sum(sum(USE[,'dom','Exports']) * p4tot * x4tot - 
     sum(V0CIF[]) * p0cif * x0cif)/(V0GDPEXP * wgdpexp) - 
-    sum(USE[,'dom','Exports'] - V0CIF)/(V0GDPEXP) + 1",
+    sum(USE[,'dom','Exports'] - V0CIF)/(V0GDPEXP) ",
   type = "defining",
   desc = "Variação no índice de preços da importação"
 )
@@ -1798,19 +1799,24 @@ sol1 <- solve_emr(minimal)
 sol1$sol$message
 ```
 
-Com a nova solução, podemos verificar as variações percentuais resultantes da alteração do parâmetro X3TOT. **Apesar de não estar diretamente relacionado com o pacote `emr`, fica explicitado abaixo o código para a criação da tabela de resultados:**
+Com a nova solução, podemos verificar as variações percentuais resultantes da alteração do parâmetro X3TOT. Apesar de não estar diretamente relacionado com o pacote `emr`, fica explicitado abaixo o código para a criação da tabela de resultados:
 
-```{r, echo=FALSE}
+```{r, echo=TRUE}
 map_df(c("l", "wgdpexp", "wgdpinc", "pgdpexp", "xgdpexp", "delB", "p3tot",
          "w3tot", "p1lab", "p2tot", "x4tot", "p4tot", "x0cif"), ~{
            data.frame(
              variavel = sol1$variables_descriptions %>% 
                filter(variable == .x) %>% 
                pull(description) %>% 
-               paste0(" (", .x,")"), 
-             value = round((sol1$variables[[.x]] - 1) * 100, 2),
+               paste0(" (", .x,")"),
              stringsAsFactors = FALSE
-           )
+           ) %>% 
+             mutate( 
+               value = case_when(
+                 .x == "delB" ~ round(sol1$variables[[.x]] * 100, 2),
+                 TRUE ~ round((sol1$variables[[.x]] - 1) * 100, 2)
+               )
+             )
          }) %>% 
   kable(
     booktabs = TRUE,
@@ -1822,10 +1828,12 @@ map_df(c("l", "wgdpexp", "wgdpinc", "pgdpexp", "xgdpexp", "delB", "p3tot",
   kable_styling(latex_options = "hold_position")
 ```
 
-Verifica-se um impacto de +0,86% no PIB real e +1,14% no emprego. O aumento da demanda interna é atendido via redução das exportações, que tiveram redução no volume (-20,46%) e aumento nos preços (+4,90%), e aumento das importações (+13,08%).
+Verifica-se um impacto de +0,95% no PIB real e +1,24% no emprego. O aumento da demanda interna é atendido via redução das exportações, que tiveram redução no volume (-19,72%) e aumento nos preços (+4,49%), e aumento das importações (+12,51%).
 
-```{r}
-map_df(runif(10, 0.5,  7), ~{
+Qual é a sensibilidade dos resultados em relação à elasticidade de Armington? O código abaixo realiza a simulação diversas vezes, alterando o parâmetro $\sigma_c$ entre 0.5 e 7. Verifica-se que o efeito no PIB é tão maior quanto menor for essa elasticidade de substituição. Os resultados estão apresentados na Figura \ref{sensibilidade}.
+
+```{r,cache=TRUE, fig.cap="Impacto % no PIB para um aumento exógeno em 10% na demanda das famílias (X3TOT)\\label{sensibilidade}", fig.pos="H", fig.height=3}
+map_df(runif(20, 0.5, 7), ~{
   
   minimal <- list(
     sets = sets,
@@ -1845,12 +1853,19 @@ map_df(runif(10, 0.5,  7), ~{
     sigma = .x,
     xgdpexp = sol1$variables$xgdpexp - 1
   )
-    
+  
 }) %>% 
   ggplot(aes(x = sigma, y = xgdpexp)) +
   geom_line() +
-  scale_y_continuous(labels = scales::percent)
-
+  scale_y_continuous(labels = scales::percent_format(
+    accuracy = .01,
+    big.mark = ".",
+    decimal.mark = ","
+  )) +
+  labs(
+    x = "Elasticidade de Armington"
+  ) +
+  theme_bw()
 ```
 
 
