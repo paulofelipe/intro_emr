@@ -287,9 +287,9 @@ variables[["p1tot"]] <- create_variable(
 
 equations[["E_p1tot"]] <- create_equation(
   'p1tot[i] -
-  (sum(USE[,,i]*p) +
-  FACTOR["Labour",i]*p1lab +
-  FACTOR["Capital",i]*p1cap[i])/V1TOT[i]',
+  (sum(USE[,,i]*p*x[,,i]) +
+  FACTOR["Labour",i]*p1lab*x1lab[i] +
+  FACTOR["Capital",i]*p1cap[i]*x1cap[i])/(V1TOT[i]*x1tot[i])',
   indexes = "i in IND",
   type = "mcc",
   desc = "Zero profit conditions"
@@ -524,11 +524,33 @@ equations[["E_x1lab"]] <- create_equation(
   desc = "Employment by industry"
 )
 
+update_equations <- list()
+
+update_equations[["USE"]] <- create_equation(
+  "USE[c,s,u] = USE[c,s,u] * p[c,s] * x[c,s,u]",
+  indexes = c("c in COM", "s in SRC", "u in USER"),
+  desc = "Atualização dos dados de uso dos produto"
+)
+
+update_equations[["V0CIF"]] <- create_equation(
+  "V0CIF = V0CIF * x0[,'imp'] * pworld * phi",
+  desc = "Atualização dos dados de importações"
+)
+
+
+update_equations[["V1TOT"]] <- create_equation(
+  "V1TOT = V1TOT * x1tot * p1tot",
+  desc = "Atualização dos dados de produção"
+)
+
+
+
 minimal <- list(
   sets = sets,
   params = params,
   variables = variables,
-  equations = equations
+  equations = equations,
+  update_equations = update_equations
 )
 
 sol <- solve_emr(minimal)
@@ -538,6 +560,8 @@ sol$sol$message
 minimal$params$x3tot$value[] <- 1.10
 
 system.time(sol_cfl <- solve_emr_block(minimal, trace = TRUE, triter = 500,
-                                       tol = 1e-7))
+                                       scale_alpha = c(0.9, 0.9, 0.1, 0.1),
+                                       tol = 1e-10))
 
 sol_cfl$variables$employ
+sol_cfl$variables$x
