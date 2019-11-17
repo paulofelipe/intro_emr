@@ -206,7 +206,7 @@ sol_cfl$variables
 # Análise de Sensibilidade ------------------------------------------------
 
 # carregar fonts windows
-extrafont::loadfonts(device = "win", quiet = TRUE)
+#extrafont::loadfonts(device = "win", quiet = TRUE)
 
 map_df(2:8, ~{
   armington$params$sigma$value <- .x
@@ -227,7 +227,7 @@ map_df(2:8, ~{
   scale_y_continuous(labels = scales::percent_format(accuracy = 0.01)) +
   hrbrthemes::theme_ipsum()
 
-extrafont::loadfonts(device = "win", quiet = TRUE)
+#extrafont::loadfonts(device = "win", quiet = TRUE)
 map_df(2:8, ~{
   armington$params$sigma$value <- .x
   sol_cfl <- solve_emr(armington)

@@ -308,9 +308,10 @@ variables[["P_c"]] <- create_variable(
   desc = "variação no índice de preços ao consumidor"
 )
 
-update_equations[["P_c"]] <- create_equation(
+equations[["P_c"]] <-  create_equation(
   "P_c[n] = prod(P[n,]^alpha[n,])",
   indexes = "n in country",
+  type = "defining",
   desc = "Variação no índice de preços ao consumidor"
 )
 
@@ -377,10 +378,10 @@ cp_model <- list(
   update_equations = update_equations
 )
 
-system.time(sol <- solve_emr_block(cp_model, scale_alpha = rep(0.6, 3),
+system.time(sol <- solve_emr_block(cp_model, scale_alpha = c(0.9, 0.6, 0.9),
                                    trace = TRUE, triter = 100, tol = 1e-7))
 
-# Contrafactual -----------------------------------------------------------
+  # Contrafactual -----------------------------------------------------------
 
 cp_model2 <- list(
   sets = sets,
@@ -433,7 +434,7 @@ cp_model2$params[["tau"]] <- create_param(
   desc = "tarifa por importador, exportador, setor"
 )
 
-system.time(sol2 <- solve_emr_block(cp_model2, scale_alpha = rep(0.4, 3), trace = TRUE,
+system.time(sol2 <- solve_emr_block(cp_model2, scale_alpha = c(0.9, 0.6, 0.9), trace = TRUE,
                                     triter = 100, tol = 1e-7))
 
 enframe(round(sol2$updated_data$W  * 100, 2)) %>% 
