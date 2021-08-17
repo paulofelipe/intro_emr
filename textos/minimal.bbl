@@ -1,0 +1,51 @@
+\begin{thebibliography}{6}
+\providecommand{\natexlab}[1]{#1}
+\providecommand{\url}[1]{\texttt{#1}}
+\expandafter\ifx\csname urlstyle\endcsname\relax
+  \providecommand{\doi}[1]{doi: #1}\else
+  \providecommand{\doi}{doi: \begingroup \urlstyle{rm}\Url}\fi
+
+\bibitem[Burfisher(2017)]{burfisher2017}
+M.E. Burfisher.
+\newblock \emph{Introduction to Computable General Equilibrium Models}.
+\newblock Cambridge University Press, 2017.
+\newblock ISBN 9781107132207.
+\newblock URL \url{https://books.google.com.br/books?id=mIHuDQAAQBAJ}.
+
+\bibitem[Dekle et~al.(2008)Dekle, Eaton, and Kortum]{dekle_2008}
+Robert Dekle, Jonathan Eaton, and Samuel Kortum.
+\newblock {Global Rebalancing with Gravity: Measuring the Burden of
+  Adjustment}.
+\newblock \emph{IMF Staff Papers}, 55\penalty0 (3):\penalty0 511--540, July
+  2008.
+\newblock URL
+  \url{https://ideas.repec.org/a/pal/imfstp/v55y2008i3p511-540.html}.
+
+\bibitem[Horridge(2000)]{horridge_2000}
+Mark Horridge.
+\newblock {ORANI-G: A General Equilibrium Model of the Australian Economy}.
+\newblock Centre of Policy Studies/IMPACT Centre Working Papers op-93, Victoria
+  University, Centre of Policy Studies/IMPACT Centre, October 2000.
+\newblock URL \url{https://ideas.repec.org/p/cop/wpaper/op-93.html}.
+
+\bibitem[Horridge and Powell(2001)]{horridge_2001}
+Mark Horridge and Alan Powell.
+\newblock Minimal - a simplified general equilibrium model.
+\newblock Technical report, Centre of Policies Studies and the Impact Project,
+  2001.
+
+\bibitem[Varadhan and Gilbert(2009)]{varadhan_gilbert_2009}
+Ravi Varadhan and Paul Gilbert.
+\newblock {BB}: An {R} package for solving a large system of nonlinear
+  equations and for optimizing a high-dimensional nonlinear objective function.
+\newblock \emph{Journal of Statistical Software}, 32\penalty0 (4):\penalty0
+  1--26, 2009.
+\newblock URL \url{http://www.jstatsoft.org/v32/i04/}.
+
+\bibitem[Zhang(2013)]{zhang_2013}
+Xiao-guang Zhang.
+\newblock A simple structure for cge models.
+\newblock Technical report, Australian Productivity Commission, 2013.
+\newblock URL \url{https://jgea.org/resources/download/6539.pdf}.
+
+\end{thebibliography}

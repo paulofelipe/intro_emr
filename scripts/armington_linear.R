@@ -14,7 +14,7 @@ reg <- c("bra", "usa", "row") # Regiões
 v0 <- c(bra = 60, usa = 30, row = 10) # Valores de comércio a preços internos
 t0 <- c(bra = 0, usa = 0, row = 0) # tarifas iniciais
 eta <- -1 # Elasticidade-preço da demanda
-epsilon <- c(bra = 1,usa = 10,row = 10) # Elasticidades-preço das ofertas
+epsilon <- c(bra = 1, usa = 10, row = 10) # Elasticidades-preço das ofertas
 sigma <- 4 # Elasticidade de substituição
 
 
@@ -192,7 +192,10 @@ armington <- list(
 sol <- solve_emr(armington)
 sol$sol$message
 
-solve_steps <- function(model, steps){
+shocks <- armington$params[c("tau")]
+shocks$tau$value['usa'] <- 0.1
+
+solve_steps <- function(model, shocks, steps){
   
   N <- steps
   
@@ -203,7 +206,11 @@ solve_steps <- function(model, steps){
     # Simulação ---------------------------------------------------------------
     # Incremento em 10% na tarifa cobrada sobre produtos dos usa
     
-    model$params$tau$value[["usa"]] <- (1.1)^(1/N) - 1
+    for(s in names(shocks)){
+      model$params[[s]]$value[] <- (1 + shocks[[s]]$value)^(1/N) - 1
+    }
+    
+    #model$params$tau$value[["usa"]] <- (1.1)^(1/N) - 1
     
     # Atualização
     for(upd in names(sol_cfl$updated_data)){
@@ -226,11 +233,11 @@ solve_steps <- function(model, steps){
   results
 }
 
-solve_euler <- function(model, steps = 3){
+solve_euler <- function(model, shocks, steps = 3){
   
-  results1 <- solve_steps(model, steps)
-  results2 <- solve_steps(model, steps * 2)
-  results3 <- solve_steps(model, steps * 4)
+  results1 <- solve_steps(model, shocks, steps)
+  results2 <- solve_steps(model, shocks, steps * 2)
+  results3 <- solve_steps(model, shocks, steps * 4)
   
   results <- results1
   
@@ -242,7 +249,7 @@ solve_euler <- function(model, steps = 3){
   
 }
 
-system.time(results <- solve_euler(armington, steps = 1))
+system.time(results <- solve_euler(armington, shocks, steps = 1))
 
-results
+map(results, round, digits = 4)
   

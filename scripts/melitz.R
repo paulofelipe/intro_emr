@@ -15,8 +15,8 @@ sets <- list(
 
 
 # Dados Base --------------------------------------------------------------
-sig <- 3.8
-eta <- 2
+sig <- 3
+eta <- 1.5
 mu <- 0.5
 a <- 4.6
 b <- 0.5
@@ -145,7 +145,7 @@ params[["pf0"]] <- create_param(
 
 params[["phi0"]] <- create_param(
   value = melitz_df_hrs %>% 
-    select(goods, exporter, importer, pf0) %>% 
+    select(goods, exporter, importer, phi0) %>% 
     distinct(),
   indexes = sets[c("goods", "exporter", "importer")],
   desc = "Benchmark avg productivity"
@@ -344,6 +344,13 @@ melitz <- list(
 )
 
 #debugonce(solve_emr_block)
-melitz$params$tau$value["G1", "R1", "R2"] <- 1.
+melitz$params$tau$value["G1", "R1", "R2"] <- melitz$params$tau$value["G1", "R1", "R2"] * 0.95
 system.time(solve_emr_block(melitz, scale_alpha = c(0.9, 0.3, 0.1, 0.4)))
 
+round((solve_emr_block(melitz, scale_alpha = c(0.9, 0.3, 0.1, 0.4))$variables$c - 1) * 100, 4)
+
+sol <- solve_emr_block(melitz, scale_alpha = c(0.9, 0.3, 0.1, 0.4))
+
+(sol$variables$PHI[1,,] / melitz$params$phi0$value[1,,] - 1) * 100
+
+(sol$variables$QF[1,,] / melitz$params$qf0$value[1,,] - 1) * 100

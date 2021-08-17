@@ -12,9 +12,9 @@ output:
 bibliography: referencias.bib
 fontsize: 12pt
 subparagraph: yes
-geometry: margin=3cm
+geometry: margin=2.5cm
 editor_options: 
-  chunk_output_type: inline
+  chunk_output_type: inline 
 ---
 
 ```{r setup, include=FALSE}
@@ -38,7 +38,7 @@ Os modelos econômicos constituem uma ferramenta fundamental para o desenvolvime
 
 Apesar da microeconomia utilizada nos modelos tradicionais de equilíbrio geral ser relativamente simples, a implementação de um modelo completo pode ser uma tarefa não trivial. Para facilitar essa tarefa, duas linguagens específicas foram desenvolvidas: GEMPACK e GAMS. É incontestável que, muito provavelmente, especialistas em modelos de equilíbrio geral irão trabalhar com uma dessas duas ferramentas. Contudo, vale ressaltar que essas ferramentas necessitam da aquisição de licenças para que seja possível trabalhar com modelos mais complexos em termos do número de variáveis/equações.
 
-O MINIMAL^[https://www.copsmodels.com/minimal.htm] (\cite{horridge_2001}) é um modelo de equilíbrio geral simplificado utilizado em cursos introdutórios do GEMPACK. A partir desse modelo, é possível deixar claro como a teoria microeconômica do consumidor e do produtor podem ser combinadas para a construção de um modelo de equilíbrio geral. 
+O MINIMAL^[https://www.copsmodels.com/minimal.htm] (\cite{horridge_2001}) é um modelo de equilíbrio geral simplificado utilizado em cursos introdutórios do GEMPACK. A partir desse modelo, é possível deixar claro como a teoria microeconômica do consumidor e do produtor podem ser combinadas para a construção de um modelo de equilíbrio geral.
 
 Este modelo considera 7 setores, um investidor agregado, um agente representativo das famílias, exportações agregadas e o governo. Cada produto pode ser obtido a partir de fontes domésticas ou importadas.
 
@@ -1865,9 +1865,14 @@ map_df(runif(20, 0.5, 7), ~{
   labs(
     x = "Elasticidade de Armington"
   ) +
-  theme_bw()
+  theme_minimal() +
+  theme(
+    panel.border = element_rect(color = "black", fill = NA),
+    panel.grid = element_blank(),
+    axis.ticks = element_line(size = 0.2),
+    axis.ticks.length=unit(.15, "cm")
+  )
 ```
-
 
 ### Experimento 2: Aumento do salário real
 
@@ -1908,9 +1913,14 @@ map_df(c("l", "wgdpexp", "wgdpinc", "pgdpexp", "xgdpexp", "delB", "p3tot",
                filter(variable == .x) %>% 
                pull(description) %>% 
                paste0(" (", .x,")"), 
-             value = round((sol1$variables[[.x]] - 1) * 100, 2),
              stringsAsFactors = FALSE
-           )
+           ) %>% 
+             mutate( 
+               value = case_when(
+                 .x == "delB" ~ round(sol1$variables[[.x]] * 100, 2),
+                 TRUE ~ round((sol1$variables[[.x]] - 1) * 100, 2)
+               )
+             )
          }) %>% 
   kable(
     booktabs = TRUE,

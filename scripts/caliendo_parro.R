@@ -6,6 +6,14 @@ library(emr)
 
 load('dados/caliendo_parro.RData')
 
+# gammas_ii_df <- gammas_ii_df %>% 
+#   group_by(country, sector) %>% 
+#   mutate(
+#     gammas = sum(value),
+#     value = pmax(value, 0),
+#     value = value/sum(value + 1e-10) * gammas) %>% 
+#   select(-gammas)
+
 # Inicializando os componentes --------------------------
 params <- list()
 variables <- list()
@@ -53,8 +61,8 @@ params[["k"]] <- create_param(
 )
 
 params[["theta"]] <- create_param(
-  value = theta_df,
-  indexes = sets['sector'],
+  value = theta_df %>% rename(sector = sectors),
+  indexes = sets[c('sector')],
   desc = "elasticidades de comércio"
 )
 
@@ -381,7 +389,7 @@ cp_model <- list(
 system.time(sol <- solve_emr_block(cp_model, scale_alpha = c(0.9, 0.6, 0.9),
                                    trace = TRUE, triter = 100, tol = 1e-7))
 
-  # Contrafactual -----------------------------------------------------------
+# Contrafactual -----------------------------------------------------------
 
 cp_model2 <- list(
   sets = sets,

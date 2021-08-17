@@ -25,7 +25,7 @@
 % estilo das seções
 \usepackage{titlesec}
 \titleformat{\section}[block]
-{\normalfont\bfseries\centering}{\thesection.}{0.5em}{\MakeUppercase}{}
+{\large\bfseries\centering}{\thesection.}{0.5em}{\MakeUppercase}{}
 
 \titleformat{\subsection}[block]
 {\normalfont\bfseries}{\thesubsection}{0.5em}{}
@@ -58,11 +58,12 @@
 \renewcommand{\headrulewidth}{0pt}
 
 % espaçemento da linha
-\renewcommand{\baselinestretch}{1.1}
+\renewcommand{\baselinestretch}{1}
 
 % altera a fonte
 \usepackage[T1]{fontenc}
 \usepackage{fbb}
+
 
 % Alterando estilo do título
 \makeatletter
@@ -98,6 +99,9 @@
 % Ícones
 \usepackage{fontawesome}
 
+% título
+\usepackage{titling}
+
 % Informações do título
 \setlength{\droptitle}{-2em}
 
@@ -122,3 +126,7 @@
 \let\oldverbatim\verbatim
 \let\endoldverbatim\endverbatim
 \renewenvironment{verbatim}{\footnotesize\oldverbatim}{\endoldverbatim}
+
+% Altear a espessura do bottomrule e toprule
+\usepackage{booktabs}
+\setlength\heavyrulewidth{0.1ex}
